@@ -1,7 +1,8 @@
 #pragma once
 
-#include <unordered_map>
 #include <vector>
+#include <utility>
+#include <span>
 
 #include "util.hpp"
 
@@ -96,9 +97,23 @@ constexpr u8 REX_R = 4;
 constexpr u8 REX_X = 2;
 constexpr u8 REX_B = 1;
 
+constexpr u8 OPTYPE_REG_REG = 1 << 0;
+constexpr u8 OPTYPE_REG_IMM = 1 << 1;
+constexpr u8 OPTYPE_REG_MEM = 1 << 2;
+constexpr u8 OPTYPE_REG = 1 << 3;
+constexpr u8 OPTYPE_IMM = 1 << 4;
+constexpr u8 OPTYPE_MEM = 1 << 5;
+
+constexpr u8 OPERAND_DIRECTION_REG_RM = 0;
+constexpr u8 OPERAND_DIRECTION_RM_REG = 1;
+constexpr u8 OPERAND_DIRECTION_RM_IMM = 2;
+constexpr u8 OPERAND_DIRECTION_REG_IMM = 3;
+constexpr u8 OPERAND_DIRECTION_RM = 4;
+constexpr u8 OPERAND_DIRECTION_REG = 5;
+
 struct alignas(16) InstructionData {
     std::vector<u8> prefixes;
-    u8 opcode[3];
+    std::pair<bool, u8> opcode[3];
     u8 modrm;
     u8 sib;
     u8 displacement_value_size;
@@ -112,7 +127,7 @@ struct alignas(16) InstructionData {
     bool has_immediate_value;
 
     inline InstructionData() :
-        opcode(),
+        opcode({std::make_pair(false, 0)}),
         modrm(0),
         sib(0),
         displacement_value_size(0),
@@ -154,21 +169,33 @@ struct alignas(16) InstructionData {
     }
 
     inline void set_opcode_1b(u8 x) {
-        this->opcode[0] = x;
-        this->opcode[1] = 0;
-        this->opcode[2] = 0;
+        this->opcode[0] = std::make_pair(true, x);
+        this->opcode[1] = std::make_pair(false, 0);
+        this->opcode[2] = std::make_pair(false, 0);
     }
 
     inline void set_opcode_2b(u8 x, u8 y) {
-        this->opcode[0] = x;
-        this->opcode[1] = y;
-        this->opcode[2] = 0;
+        this->opcode[0] = std::make_pair(true, x);
+        this->opcode[1] = std::make_pair(true, y);
+        this->opcode[2] = std::make_pair(false, 0);
     }
 
     inline void set_opcode_3b(u8 x, u8 y, u8 z) {
-        this->opcode[0] = x;
-        this->opcode[1] = y;
-        this->opcode[2] = z;
+        this->opcode[0] = std::make_pair(true, x);
+        this->opcode[1] = std::make_pair(true, y);
+        this->opcode[2] = std::make_pair(true, z);
+    }
+
+    inline void set_opcode(const u8 *opc, u8 size) {
+        u32 i;
+        for(i = 0; i < size; i++) {
+            this->opcode[i] = std::make_pair(true, opc[i]);
+            i++;
+        }
+
+        for(u32 j = i; j < 3; j++) {
+            this->opcode[j] = std::make_pair(false, (u8) 0);
+        }
     }
 
     inline void set_modrm(u8 mod, u8 reg, u8 rm) {
@@ -199,9 +226,9 @@ struct alignas(16) InstructionData {
             out_bytes.push_back(this->prefixes[i]);
         }
 
-        if(this->opcode[0] != 0) out_bytes.push_back(this->opcode[0]);
-        if(this->opcode[1] != 0) out_bytes.push_back(this->opcode[1]);
-        if(this->opcode[2] != 0) out_bytes.push_back(this->opcode[2]);
+        if(this->opcode[0].first) out_bytes.push_back(this->opcode[0].second);
+        if(this->opcode[1].first) out_bytes.push_back(this->opcode[1].second);
+        if(this->opcode[2].first) out_bytes.push_back(this->opcode[2].second);
         if(this->has_modrm) out_bytes.push_back(this->modrm);
         if(this->has_sib) out_bytes.push_back(this->sib);
 
@@ -251,7 +278,13 @@ struct EncodingData {
     u8 opcode;
     u8 prefix[4];
     u8 enc_opcode[3];
+    u8 opcode_size;
     u8 op_type;
+    u8 direction;
+    bool is_8_bit;
+
+    /* Sometimes we encode the register operand in the opcode */
+    bool enc_operand_in_opcode;
 };
 
 enum OperatingMode {
@@ -260,10 +293,35 @@ enum OperatingMode {
     MODE_64_BIT, // Long mode
 };
 
+enum Opcodes : u8 {
+    NOP = 0x00,
+    ADD = 0x01,
+    SUB = 0x02,
+    MUL = 0x03,
+    DIV = 0x04,
+    IDIV = 0x05,
+    MOV = 0x06,
+    CALL = 0x07,
+    JMP = 0x08
+};
+
+using EncodingList = std::vector<EncodingData>;
+
+void init();
+
+InstructionData encode_rm(EncodingData data, Reg rm);
+InstructionData encode_reg(EncodingData data, Reg reg);
 InstructionData encode_i(EncodingData data, ImmediateValue imm);
-InstructionData encode_rr(EncodingData data, Reg r1, Reg r2);
-InstructionData encode_ri(EncodingData data, Reg r1, ImmediateValue imm);
-InstructionData encode_rm(EncodingData data, Reg r1, AddressValue addr);
+InstructionData encode_rr(EncodingData data, Reg reg, Reg rm);
+InstructionData encode_ri(EncodingData data, Reg rm, ImmediateValue imm);
+InstructionData encode_rm(EncodingData data, Reg reg, AddressValue addr);
+InstructionData encode_mi(EncodingData data, AddressValue addr, ImmediateValue imm);
+
+InstructionData encode_i(u8 opcode, ImmediateValue imm);
+InstructionData encode_rr(u8 opcode, Reg r1, Reg r2);
+InstructionData encode_ri(u8 opcode, Reg r1, ImmediateValue imm);
+InstructionData encode_rm(u8 opcode, Reg r1, AddressValue addr);
+InstructionData encode_mr(u8 opcode, AddressValue addr, Reg r1);
 
 void set_mode(OperatingMode mode);
 OperatingMode get_current_mode();
