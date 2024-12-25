@@ -313,6 +313,7 @@ struct EncodingData {
     u8 opcode_size;
     u32 op_type;
     u8 direction;
+    u8 default_modrm_reg;
     bool is_8_bit;
 
     /* Sometimes we encode the register operand in the opcode */
@@ -338,8 +339,6 @@ enum Opcodes : u8 {
 };
 
 using EncodingList = std::vector<EncodingData>;
-
-void init();
 
 InstructionData encode_r_rm(EncodingData data, Reg rm);
 InstructionData encode_r_reg(EncodingData data, Reg reg);

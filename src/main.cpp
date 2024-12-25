@@ -14,8 +14,6 @@ static void print_bytes(const std::vector<u8> &bytes) {
 }
 
 int main() {
-    x86_64::init();
-
     std::vector<u8> bytes;
 
     x86_64::encode_rr(x86_64::ADD, x86_64::REG_RAX, x86_64::REG_RCX)
@@ -100,6 +98,14 @@ int main() {
         x86_64::MOV,
         x86_64::make_addr(1, 0, x86_64::REG_EAX, x86_64::REG_R15D),
         x86_64::REG_R8W)
+        .encode(bytes);
+    print_bytes(bytes);
+    bytes.clear();
+
+    x86_64::encode_mi(
+        x86_64::MOV,
+        x86_64::make_addr(0, 0, x86_64::ADDR_INVALID_INDEX, x86_64::REG_RCX),
+        x86_64::make_imm<u32>(0x1234))
         .encode(bytes);
     print_bytes(bytes);
     bytes.clear();

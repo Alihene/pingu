@@ -6,10 +6,8 @@
 
 static x86_64::OperatingMode current_mode = x86_64::MODE_64_BIT;
 
-static std::unordered_map<u8, x86_64::EncodingList> instructions;
-
-void x86_64::init() {
-    instructions[x86_64::ADD] = {
+static std::unordered_map<u8, x86_64::EncodingList> instructions = {
+    {x86_64::ADD, {
         {
             x86_64::ADD,
             {0x00},
@@ -17,6 +15,7 @@ void x86_64::init() {
             1,
             x86_64::OPTYPE_REG_IMM,
             x86_64::OPERAND_DIRECTION_RM_IMM,
+            0,
             true,
             false
         },
@@ -27,6 +26,7 @@ void x86_64::init() {
             1,
             x86_64::OPTYPE_REG_IMM,
             x86_64::OPERAND_DIRECTION_RM_IMM,
+            0,
             false,
             false
         },
@@ -37,6 +37,7 @@ void x86_64::init() {
             1,
             x86_64::OPTYPE_REG_REG | x86_64::OPTYPE_REG_MEM,
             x86_64::OPERAND_DIRECTION_RM_REG,
+            0,
             true,
             false
         },
@@ -47,6 +48,7 @@ void x86_64::init() {
             1,
             x86_64::OPTYPE_REG_REG | x86_64::OPTYPE_REG_MEM,
             x86_64::OPERAND_DIRECTION_RM_REG,
+            0,
             false,
             false
         },
@@ -56,6 +58,7 @@ void x86_64::init() {
             1,
             x86_64::OPTYPE_REG_REG | x86_64::OPTYPE_REG_MEM,
             x86_64::OPERAND_DIRECTION_REG_RM,
+            0,
             true,
             false
         },
@@ -66,12 +69,13 @@ void x86_64::init() {
             1,
             x86_64::OPTYPE_REG_REG | x86_64::OPTYPE_REG_MEM,
             x86_64::OPERAND_DIRECTION_REG_RM,
+            0,
             false,
             false
         }
-    };
+    }},
 
-    instructions[x86_64::MOV] = {
+    {x86_64::MOV, {
         {
             x86_64::MOV,
             {0x00},
@@ -79,6 +83,7 @@ void x86_64::init() {
             1,
             x86_64::OPTYPE_REG_REG | x86_64::OPTYPE_REG_MEM,
             x86_64::OPERAND_DIRECTION_RM_REG,
+            0,
             false,
             false
         },
@@ -89,6 +94,7 @@ void x86_64::init() {
             1,
             x86_64::OPTYPE_REG_REG | x86_64::OPTYPE_REG_MEM,
             x86_64::OPERAND_DIRECTION_REG_RM,
+            0,
             false,
             false
         },
@@ -99,6 +105,7 @@ void x86_64::init() {
             1,
             x86_64::OPTYPE_REG_REG | x86_64::OPTYPE_REG_MEM,
             x86_64::OPERAND_DIRECTION_RM_REG,
+            0,
             true,
             false
         },
@@ -109,6 +116,7 @@ void x86_64::init() {
             1,
             x86_64::OPTYPE_REG_REG | x86_64::OPTYPE_REG_MEM,
             x86_64::OPERAND_DIRECTION_REG_RM,
+            0,
             true,
             false
         },
@@ -119,6 +127,7 @@ void x86_64::init() {
             1,
             x86_64::OPTYPE_REG_IMM,
             x86_64::OPERAND_DIRECTION_REG_IMM,
+            0,
             false,
             true
         },
@@ -129,6 +138,7 @@ void x86_64::init() {
             1,
             x86_64::OPTYPE_REG_IMM,
             x86_64::OPERAND_DIRECTION_RM_IMM,
+            0,
             false,
             false,
         },
@@ -139,11 +149,12 @@ void x86_64::init() {
             1,
             x86_64::OPTYPE_REG_IMM,
             x86_64::OPERAND_DIRECTION_RM_IMM,
+            0,
             true,
             false,
         }
-    };
-}
+    }}
+};
 
 x86_64::InstructionData x86_64::encode_r_rm(x86_64::EncodingData data, x86_64::Reg rm) {
     x86_64::InstructionData insn;
@@ -284,7 +295,7 @@ x86_64::InstructionData x86_64::encode_rr(x86_64::EncodingData data, x86_64::Reg
 
     insn.set_opcode(data.enc_opcode, data.opcode_size);
 
-    insn.set_modrm(3, reg % 8, rm % 8);
+    insn.set_modrm(3, ENCODE_REG(reg), ENCODE_REG(rm));
     return insn;
 }
 
@@ -327,7 +338,7 @@ x86_64::InstructionData x86_64::encode_ri(x86_64::EncodingData data, x86_64::Reg
     insn.set_opcode(data.enc_opcode, data.opcode_size);
 
     if(!data.enc_operand_in_opcode) {
-        insn.set_modrm(3, 0, r % 8);
+        insn.set_modrm(3, data.default_modrm_reg, r % 8);
     }
 
     switch(imm.size) {
@@ -363,10 +374,12 @@ x86_64::InstructionData x86_64::encode_rm(x86_64::EncodingData data, x86_64::Reg
     x86_64::InstructionData insn;
 
     if(IS_REG_16_BIT(reg)) {
+        /* Operand size override prefix */
         insn.push_prefix(0x66);
     }
 
     if(IS_REG_32_BIT(addr.base) || IS_REG_32_BIT(addr.index)) {
+        /* Address size override prefix */
         insn.push_prefix(0x67);
     }
 
@@ -392,7 +405,7 @@ x86_64::InstructionData x86_64::encode_rm(x86_64::EncodingData data, x86_64::Reg
         || reg == x86_64::REG_BPL
         || reg == x86_64::REG_SIL
         || reg == x86_64::REG_DIL) {
-        // These need a REX prefix to access
+        /* These need a REX prefix to access */
         rex_needed = true;
     }
 
@@ -402,19 +415,46 @@ x86_64::InstructionData x86_64::encode_rm(x86_64::EncodingData data, x86_64::Reg
 
     insn.set_opcode(data.enc_opcode, data.opcode_size);
     
-    bool has_sib = addr.is_index_valid(); // We only need an SIB byte if we have a scaled index
+    /* We only need a SIB byte if we have a scaled index */
+    bool has_sib = addr.is_index_valid();
+
     bool has_displacement = addr.displacement > 0;
 
+    u8 mod;
+    if(has_displacement && addr.is_base_valid()) {
+        if(addr.is_displacement_8_bit()) {
+            /* We can save space by using an 8 bit displacement if we can (not required) */
+            mod = 1;
+        } else {
+            mod = 2;
+        }
+    } else {
+        /*
+         * Either we have no displacement at all, or we do but since we don't have a base,
+         * the SIB byte indicates the displacement. Either way, mod must be 00 in this case.
+         */
+        mod = 0;
+    }
+
     insn.set_modrm(
-        has_displacement && addr.is_base_valid() ? (addr.is_displacement_8_bit() ? 1 : 2) : 0, // If we have no base, set mod to 00
+        mod,
         ENCODE_REG(reg),
         has_sib ? 4 : ENCODE_REG(addr.base));
 
-    has_displacement |= (!addr.is_base_valid() && addr.is_index_valid()); // Edge case
+    /*
+     * Something like [rcx*4] would actually be encoded as [rcx*4+0x0].
+     * We need to account for this in case we are missing a base.
+     */
+    has_displacement |= (!addr.is_base_valid() && addr.is_index_valid());
 
     if(has_sib) {
-        insn.set_sib(addr.scale, ENCODE_REG(addr.index), !addr.is_base_valid() ? 0b101 : ENCODE_REG(addr.base));
-        if(((insn.sib & 3) == 0b101) || has_displacement) {
+        /* 101 (BP) is used to show that there is no base */
+        u8 sib_base = !addr.is_base_valid() ? 0b101 : ENCODE_REG(addr.base);
+
+        insn.set_sib(addr.scale, ENCODE_REG(addr.index), sib_base);
+
+        /* SIB.base = 101 indicates that there is a displacement value */
+        if(sib_base == 0b101 || has_displacement) {
             insn.set_displacement(addr.displacement, addr.is_displacement_8_bit() ? 1 : 4);
         }
     } else {
@@ -426,15 +466,16 @@ x86_64::InstructionData x86_64::encode_rm(x86_64::EncodingData data, x86_64::Reg
     return insn;
 }
 
-/* addr is stored in the the ModR/M.rm field */
 x86_64::InstructionData x86_64::encode_mi(x86_64::EncodingData data, x86_64::AddressValue addr, x86_64::ImmediateValue imm) {
     x86_64::InstructionData insn;
 
     if(imm.size == 2) {
+        /* Operand size override prefix */
         insn.push_prefix(0x66);
     }
 
     if(IS_REG_32_BIT(addr.base) || IS_REG_32_BIT(addr.index)) {
+        /* Address size override prefix */
         insn.push_prefix(0x67);
     }
 
@@ -459,18 +500,45 @@ x86_64::InstructionData x86_64::encode_mi(x86_64::EncodingData data, x86_64::Add
 
     insn.set_opcode(data.enc_opcode, data.opcode_size);
     
-    bool has_sib = addr.is_index_valid(); // We only need an SIB byte if we have a scaled index
+    /* We only need a SIB byte if we have a scaled index */
+    bool has_sib = addr.is_index_valid();
+
     bool has_displacement = addr.displacement > 0;
 
+    u8 mod;
+    if(has_displacement && addr.is_base_valid()) {
+        if(addr.is_displacement_8_bit()) {
+            /* We can save space by using an 8 bit displacement if we can (not required) */
+            mod = 1;
+        } else {
+            mod = 2;
+        }
+    } else {
+        /*
+         * Either we have no displacement at all, or we do but since we don't have a base,
+         * the SIB byte indicates the displacement. Either way, mod must be 00 in this case.
+         */
+        mod = 0;
+    }
+
     insn.set_modrm(
-        has_displacement && addr.is_base_valid() ? (addr.is_displacement_8_bit() ? 1 : 2) : 0, // If we have no base, we set mod to 00
-        0,
+        mod,
+        data.default_modrm_reg,
         has_sib ? 4 : ENCODE_REG(addr.base));
 
+    /*
+     * Something like [rcx*4] would actually be encoded as [rcx*4+0x0].
+     * We need to account for this in case we are missing a base.
+     */
     has_displacement |= (!addr.is_base_valid() && addr.is_index_valid()); // Edge case
 
     if(has_sib) {
-        insn.set_sib(addr.scale, ENCODE_REG(addr.index), !addr.is_base_valid() ? 0b101 : ENCODE_REG(addr.base));
+        /* 101 (BP) is used to show that there is no base */
+        u8 sib_base = !addr.is_base_valid() ? 0b101 : ENCODE_REG(addr.base);
+
+        insn.set_sib(addr.scale, ENCODE_REG(addr.index), sib_base);
+
+        /* SIB.base = 101 indicates that there is a displacement value */
         if(((insn.sib & 3) == 0b101) || has_displacement) {
             insn.set_displacement(addr.displacement, addr.is_displacement_8_bit() ? 1 : 4);
         }
