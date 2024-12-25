@@ -3,6 +3,7 @@
 #include <vector>
 #include <utility>
 #include <span>
+#include <type_traits>
 
 #include "util.hpp"
 
@@ -97,12 +98,12 @@ constexpr u8 REX_R = 4;
 constexpr u8 REX_X = 2;
 constexpr u8 REX_B = 1;
 
-constexpr u8 OPTYPE_REG_REG = 1 << 0;
-constexpr u8 OPTYPE_REG_IMM = 1 << 1;
-constexpr u8 OPTYPE_REG_MEM = 1 << 2;
-constexpr u8 OPTYPE_REG = 1 << 3;
-constexpr u8 OPTYPE_IMM = 1 << 4;
-constexpr u8 OPTYPE_MEM = 1 << 5;
+constexpr u32 OPTYPE_REG_REG = 1 << 0;
+constexpr u32 OPTYPE_REG_IMM = 1 << 1;
+constexpr u32 OPTYPE_REG_MEM = 1 << 2;
+constexpr u32 OPTYPE_REG = 1 << 3;
+constexpr u32 OPTYPE_IMM = 1 << 4;
+constexpr u32 OPTYPE_MEM = 1 << 5;
 
 constexpr u8 OPERAND_DIRECTION_REG_RM = 0;
 constexpr u8 OPERAND_DIRECTION_RM_REG = 1;
@@ -247,10 +248,6 @@ struct alignas(16) InstructionData {
 
 struct alignas(16) ImmediateValue {
     u8 size;
-    enum {
-        IMM_INT,
-        IMM_ADDR,
-    } type;
     union {
         imm8 byte;
         imm16 word;
@@ -258,6 +255,28 @@ struct alignas(16) ImmediateValue {
         imm64 qword;
     } val;
 };
+
+template<typename T>
+inline ImmediateValue make_imm(T value) {
+    ImmediateValue imm;
+    if constexpr(std::is_same<T, u8>::value) {
+        imm.size = 1;
+        imm.val.byte = value;
+    } else if constexpr(std::is_same<T, u16>::value) {
+        imm.size = 2;
+        imm.val.word = value;
+    } else if constexpr(std::is_same<T, u32>::value) {
+        imm.size = 4;
+        imm.val.dword = value;
+    } else if constexpr(std::is_same<T, u64>::value) {
+        imm.size = 8;
+        imm.val.qword = value;
+    }
+    return imm;
+}
+
+constexpr u8 ADDR_INVALID_BASE = 0xFF;
+constexpr u8 ADDR_INVALID_INDEX = 0xFF;
 
 struct AddressValue {
     u32 displacement;
@@ -270,20 +289,29 @@ struct AddressValue {
     }
 
     inline bool is_index_valid() const {
-        return this->index != 0xFF;
+        return this->index != ADDR_INVALID_INDEX;
     }
 
     inline bool is_base_valid() const {
-        return this->base != 0xFF;
+        return this->base != ADDR_INVALID_BASE;
     }
 };
+
+inline AddressValue make_addr(u32 displacement, u8 scale, u8 index, u8 base) {
+    AddressValue addr;
+    addr.displacement = displacement;
+    addr.scale = scale;
+    addr.index = index;
+    addr.base = base;
+    return addr;
+}
 
 struct EncodingData {
     u8 opcode;
     u8 prefix[4];
     u8 enc_opcode[3];
     u8 opcode_size;
-    u8 op_type;
+    u32 op_type;
     u8 direction;
     bool is_8_bit;
 

@@ -2,6 +2,7 @@
 
 #include <unordered_map>
 #include <iostream>
+#include <cassert>
 
 static x86_64::OperatingMode current_mode = x86_64::MODE_64_BIT;
 
@@ -12,39 +13,10 @@ void x86_64::init() {
         {
             x86_64::ADD,
             {0x00},
-            {0x01, 0x00, 0x00},
+            {0x80, 0x00, 0x00},
             1,
-            x86_64::OPTYPE_REG_REG | x86_64::OPTYPE_REG_MEM,
-            x86_64::OPERAND_DIRECTION_RM_REG,
-            false,
-            false
-        },
-        {
-            x86_64::ADD,
-            {0x00},
-            {0x03, 0x00, 0x00},
-            1,
-            x86_64::OPTYPE_REG_REG | x86_64::OPTYPE_REG_MEM,
-            x86_64::OPERAND_DIRECTION_REG_RM,
-            false,
-            false
-        },
-        {
-            x86_64::ADD,
-            {0x00},
-            {0x00, 0x00, 0x00},
-            1,
-            x86_64::OPTYPE_REG_REG | x86_64::OPTYPE_REG_MEM,
-            x86_64::OPERAND_DIRECTION_RM_REG,
-            true,
-            false
-        },
-        {
-            x86_64::ADD,
-            {0x00}, {0x02, 0x00, 0x00},
-            1,
-            x86_64::OPTYPE_REG_REG | x86_64::OPTYPE_REG_MEM,
-            x86_64::OPERAND_DIRECTION_REG_RM,
+            x86_64::OPTYPE_REG_IMM,
+            x86_64::OPERAND_DIRECTION_RM_IMM,
             true,
             false
         },
@@ -61,13 +33,42 @@ void x86_64::init() {
         {
             x86_64::ADD,
             {0x00},
-            {0x80, 0x00, 0x00},
+            {0x00, 0x00, 0x00},
             1,
-            x86_64::OPTYPE_REG_IMM,
-            x86_64::OPERAND_DIRECTION_RM_IMM,
+            x86_64::OPTYPE_REG_REG | x86_64::OPTYPE_REG_MEM,
+            x86_64::OPERAND_DIRECTION_RM_REG,
             true,
             false
         },
+        {
+            x86_64::ADD,
+            {0x00},
+            {0x01, 0x00, 0x00},
+            1,
+            x86_64::OPTYPE_REG_REG | x86_64::OPTYPE_REG_MEM,
+            x86_64::OPERAND_DIRECTION_RM_REG,
+            false,
+            false
+        },
+        {
+            x86_64::ADD,
+            {0x00}, {0x02, 0x00, 0x00},
+            1,
+            x86_64::OPTYPE_REG_REG | x86_64::OPTYPE_REG_MEM,
+            x86_64::OPERAND_DIRECTION_REG_RM,
+            true,
+            false
+        },
+        {
+            x86_64::ADD,
+            {0x00},
+            {0x03, 0x00, 0x00},
+            1,
+            x86_64::OPTYPE_REG_REG | x86_64::OPTYPE_REG_MEM,
+            x86_64::OPERAND_DIRECTION_REG_RM,
+            false,
+            false
+        }
     };
 
     instructions[x86_64::MOV] = {
@@ -129,6 +130,16 @@ void x86_64::init() {
             x86_64::OPTYPE_REG_IMM,
             x86_64::OPERAND_DIRECTION_RM_IMM,
             false,
+            false,
+        },
+        {
+            x86_64::MOV,
+            {0x00},
+            {0xC6, 0x00, 0x00},
+            1,
+            x86_64::OPTYPE_REG_IMM,
+            x86_64::OPERAND_DIRECTION_RM_IMM,
+            true,
             false,
         }
     };
@@ -204,6 +215,8 @@ x86_64::InstructionData x86_64::encode_r_reg(x86_64::EncodingData data, x86_64::
 
 x86_64::InstructionData x86_64::encode_i(x86_64::EncodingData data, x86_64::ImmediateValue imm) {
     x86_64::InstructionData insn;
+
+    
 
     insn.set_opcode(data.enc_opcode, data.opcode_size);
 
@@ -393,7 +406,7 @@ x86_64::InstructionData x86_64::encode_rm(x86_64::EncodingData data, x86_64::Reg
     bool has_displacement = addr.displacement > 0;
 
     insn.set_modrm(
-        has_displacement && addr.is_base_valid() ? 2 : 0, // If we have no base, we omit mod 10
+        has_displacement && addr.is_base_valid() ? (addr.is_displacement_8_bit() ? 1 : 2) : 0, // If we have no base, set mod to 00
         ENCODE_REG(reg),
         has_sib ? 4 : ENCODE_REG(addr.base));
 
@@ -402,18 +415,18 @@ x86_64::InstructionData x86_64::encode_rm(x86_64::EncodingData data, x86_64::Reg
     if(has_sib) {
         insn.set_sib(addr.scale, ENCODE_REG(addr.index), !addr.is_base_valid() ? 0b101 : ENCODE_REG(addr.base));
         if(((insn.sib & 3) == 0b101) || has_displacement) {
-            insn.set_displacement(addr.displacement, 4);
+            insn.set_displacement(addr.displacement, addr.is_displacement_8_bit() ? 1 : 4);
         }
     } else {
         if(has_displacement) {
-            insn.set_displacement(addr.displacement, 4);
+            insn.set_displacement(addr.displacement, addr.is_displacement_8_bit() ? 1 : 4);
         }
     }
 
     return insn;
 }
 
-/* SIB is always encoded in r/m */
+/* addr is stored in the the ModR/M.rm field */
 x86_64::InstructionData x86_64::encode_mi(x86_64::EncodingData data, x86_64::AddressValue addr, x86_64::ImmediateValue imm) {
     x86_64::InstructionData insn;
 
@@ -450,7 +463,7 @@ x86_64::InstructionData x86_64::encode_mi(x86_64::EncodingData data, x86_64::Add
     bool has_displacement = addr.displacement > 0;
 
     insn.set_modrm(
-        has_displacement && addr.is_base_valid() ? (addr.is_displacement_8_bit() ? 1 : 2) : 0, // If we have no base, we omit mod 10
+        has_displacement && addr.is_base_valid() ? (addr.is_displacement_8_bit() ? 1 : 2) : 0, // If we have no base, we set mod to 00
         0,
         has_sib ? 4 : ENCODE_REG(addr.base));
 
@@ -606,19 +619,19 @@ x86_64::InstructionData x86_64::encode_mr(u8 opcode, x86_64::AddressValue addr, 
 x86_64::InstructionData x86_64::encode_mi(u8 opcode, x86_64::AddressValue addr, x86_64::ImmediateValue imm) {
     for(EncodingData d : instructions[opcode]) {
         if(d.op_type & x86_64::OPTYPE_REG_IMM) {
-            // if(IS_REG_8_BIT(r1)) {
-            //     if(d.is_8_bit) {
-            //         if(d.direction == x86_64::OPERAND_DIRECTION_RM_IMM) {
-            //             return x86_64::encode_rm(d, r1, addr);
-            //         }
-            //     }
-            // } else {
+            if(imm.size == 1) {
+                if(d.is_8_bit) {
+                    if(d.direction == x86_64::OPERAND_DIRECTION_RM_IMM) {
+                        return x86_64::encode_mi(d, addr, imm);
+                    }
+                }
+            } else {
                 if(!d.is_8_bit) {
                     if(d.direction == x86_64::OPERAND_DIRECTION_RM_IMM) {
                         return x86_64::encode_mi(d, addr, imm);
                     }
                 }
-            // }
+            }
         }
     }
 
