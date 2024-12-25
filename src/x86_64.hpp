@@ -127,7 +127,7 @@ struct alignas(16) InstructionData {
     bool has_immediate_value;
 
     inline InstructionData() :
-        opcode({std::make_pair(false, 0)}),
+        opcode{std::make_pair(false, 0)},
         modrm(0),
         sib(0),
         displacement_value_size(0),
@@ -265,6 +265,10 @@ struct AddressValue {
 
     inline AddressValue(): displacement(0), scale(0), index(0xFF), base(0xFF) {}
 
+    inline bool is_displacement_8_bit() const {
+        return (this->displacement & 0xFFFFFF00) == 0;
+    }
+
     inline bool is_index_valid() const {
         return this->index != 0xFF;
     }
@@ -309,11 +313,11 @@ using EncodingList = std::vector<EncodingData>;
 
 void init();
 
-InstructionData encode_rm(EncodingData data, Reg rm);
-InstructionData encode_reg(EncodingData data, Reg reg);
+InstructionData encode_r_rm(EncodingData data, Reg rm);
+InstructionData encode_r_reg(EncodingData data, Reg reg);
 InstructionData encode_i(EncodingData data, ImmediateValue imm);
 InstructionData encode_rr(EncodingData data, Reg reg, Reg rm);
-InstructionData encode_ri(EncodingData data, Reg rm, ImmediateValue imm);
+InstructionData encode_ri(EncodingData data, Reg r, bool is_rm, ImmediateValue imm);
 InstructionData encode_rm(EncodingData data, Reg reg, AddressValue addr);
 InstructionData encode_mi(EncodingData data, AddressValue addr, ImmediateValue imm);
 
@@ -322,6 +326,7 @@ InstructionData encode_rr(u8 opcode, Reg r1, Reg r2);
 InstructionData encode_ri(u8 opcode, Reg r1, ImmediateValue imm);
 InstructionData encode_rm(u8 opcode, Reg r1, AddressValue addr);
 InstructionData encode_mr(u8 opcode, AddressValue addr, Reg r1);
+InstructionData encode_mi(u8 opcode, AddressValue addr, ImmediateValue imm);
 
 void set_mode(OperatingMode mode);
 OperatingMode get_current_mode();

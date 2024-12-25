@@ -77,5 +77,33 @@ int main() {
     print_bytes(bytes);
     bytes.clear();
 
+    x86_64::AddressValue addr4;
+    addr4.base = x86_64::REG_R12;
+    addr4.index = x86_64::REG_R11;
+    addr4.scale = 2;
+    addr4.displacement = 0x1234;
+    x86_64::ImmediateValue imm3 = {0};
+    imm3.type = x86_64::ImmediateValue::IMM_INT;
+    imm3.size = 4;
+    imm3.val.dword = 0x12345678;
+    insn = x86_64::encode_mi(x86_64::MOV, addr4, imm3);
+    insn.encode(bytes);
+    print_bytes(bytes);
+    bytes.clear();
+
+    x86_64::AddressValue addr5;
+    addr5.base = x86_64::REG_RDI;
+    addr5.index = x86_64::REG_R15;
+    addr5.scale = 1;
+    addr5.displacement = 1;
+    x86_64::ImmediateValue imm4 = {0};
+    imm4.type = x86_64::ImmediateValue::IMM_INT;
+    imm4.size = 2;
+    imm4.val.word = 1;
+    insn = x86_64::encode_mi(x86_64::MOV, addr5, imm4);
+    insn.encode(bytes);
+    print_bytes(bytes);
+    bytes.clear();
+
     return 0;
 }
