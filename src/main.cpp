@@ -32,7 +32,8 @@ int main() {
     x86_64::encode_rm(
         x86_64::ADD,
         x86_64::REG_RCX,
-        x86_64::make_addr(
+        x86_64::make_mem(
+            4,
             0x1234,
             3,
             x86_64::REG_RDX,
@@ -43,7 +44,7 @@ int main() {
 
     x86_64::encode_mr(
         x86_64::ADD,
-        x86_64::make_addr(0x1234, 3, x86_64::REG_RDX, x86_64::REG_R12),
+        x86_64::make_mem(1, 0x1234, 3, x86_64::REG_RDX, x86_64::REG_R12),
         x86_64::REG_AL)
         .encode(bytes);
     print_bytes(bytes);
@@ -52,7 +53,7 @@ int main() {
     x86_64::encode_rm(
         x86_64::MOV,
         x86_64::REG_AX,
-        x86_64::make_addr(0x1234, 2, x86_64::REG_ECX, x86_64::REG_R12D))
+        x86_64::make_mem(2, 0x1234, 2, x86_64::REG_ECX, x86_64::REG_R12D))
         .encode(bytes);
     print_bytes(bytes);
     bytes.clear();
@@ -72,7 +73,7 @@ int main() {
 
     x86_64::encode_mi(
         x86_64::MOV,
-        x86_64::make_addr(0x1234, 2, x86_64::REG_R11, x86_64::REG_R12),
+        x86_64::make_mem(4, 0x1234, 2, x86_64::REG_R11, x86_64::REG_R12),
         x86_64::make_imm<u32>(0x12345678))
         .encode(bytes);
     print_bytes(bytes);
@@ -80,7 +81,7 @@ int main() {
 
     x86_64::encode_mi(
         x86_64::MOV,
-        x86_64::make_addr(1, 1, x86_64::REG_R15, x86_64::REG_RDI),
+        x86_64::make_mem(2, 1, 1, x86_64::REG_R15, x86_64::REG_RDI),
         x86_64::make_imm<u16>(1))
         .encode(bytes);
     print_bytes(bytes);
@@ -88,7 +89,7 @@ int main() {
 
     x86_64::encode_mi(
         x86_64::MOV,
-        x86_64::make_addr(0x12345678, 3, x86_64::REG_R15, x86_64::REG_RDI),
+        x86_64::make_mem(1, 0x12345678, 3, x86_64::REG_R15, x86_64::REG_RDI),
         x86_64::make_imm<u8>(0xFF))
         .encode(bytes);
     print_bytes(bytes);
@@ -96,7 +97,7 @@ int main() {
 
     x86_64::encode_mr(
         x86_64::MOV,
-        x86_64::make_addr(1, 0, x86_64::REG_EAX, x86_64::REG_R15D),
+        x86_64::make_mem(2, 1, 0, x86_64::REG_EAX, x86_64::REG_R15D),
         x86_64::REG_R8W)
         .encode(bytes);
     print_bytes(bytes);
@@ -104,11 +105,25 @@ int main() {
 
     x86_64::encode_mi(
         x86_64::MOV,
-        x86_64::make_addr(0, 0, x86_64::ADDR_INVALID_INDEX, x86_64::REG_RCX),
+        x86_64::make_mem(4, 0, 0, x86_64::ADDR_INVALID_INDEX, x86_64::REG_RCX),
         x86_64::make_imm<u32>(0x1234))
         .encode(bytes);
     print_bytes(bytes);
     bytes.clear();
 
+    x86_64::encode_m(
+        x86_64::PUSH,
+        x86_64::make_mem(8, 0x1234, 2, x86_64::REG_RAX, x86_64::REG_R12))
+        .encode(bytes);
+    print_bytes(bytes);
+    bytes.clear();
+
+    x86_64::encode_r(
+        x86_64::PUSH,
+        x86_64::REG_RDX)
+        .encode(bytes);
+    print_bytes(bytes);
+    bytes.clear();
+    
     return 0;
 }

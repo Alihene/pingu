@@ -85,7 +85,6 @@ enum Registers : Reg {
     REG_R14 = 0x3E,
     REG_R15 = 0x3F,
 
-    // Didn't quite know where to put these, the end seems fine
     REG_AH = 0x44,
     REG_CH = 0x45,
     REG_DH = 0x46,
@@ -98,19 +97,19 @@ constexpr u8 REX_R = 4;
 constexpr u8 REX_X = 2;
 constexpr u8 REX_B = 1;
 
-constexpr u32 OPTYPE_REG_REG = 1 << 0;
-constexpr u32 OPTYPE_REG_IMM = 1 << 1;
-constexpr u32 OPTYPE_REG_MEM = 1 << 2;
-constexpr u32 OPTYPE_REG = 1 << 3;
-constexpr u32 OPTYPE_IMM = 1 << 4;
-constexpr u32 OPTYPE_MEM = 1 << 5;
-
-constexpr u8 OPERAND_DIRECTION_REG_RM = 0;
-constexpr u8 OPERAND_DIRECTION_RM_REG = 1;
-constexpr u8 OPERAND_DIRECTION_RM_IMM = 2;
-constexpr u8 OPERAND_DIRECTION_REG_IMM = 3;
-constexpr u8 OPERAND_DIRECTION_RM = 4;
-constexpr u8 OPERAND_DIRECTION_REG = 5;
+/* 
+ * These types are taken from the Intel SDM volume 2 to remove any ambiguity.
+ * https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html
+ */
+constexpr u32 OPERAND_ENCODING_ZO = 0;
+constexpr u32 OPERAND_ENCODING_MR = 1;
+constexpr u32 OPERAND_ENCODING_RM = 2;
+constexpr u32 OPERAND_ENCODING_OI = 3;
+constexpr u32 OPERAND_ENCODING_MI = 4;
+constexpr u32 OPERAND_ENCODING_M = 5;
+constexpr u32 OPERAND_ENCODING_O = 6;
+constexpr u32 OPERAND_ENCODING_I = 7;
+constexpr u32 OPERAND_ENCODING_R = 8;
 
 struct alignas(16) InstructionData {
     std::vector<u8> prefixes;
@@ -169,24 +168,6 @@ struct alignas(16) InstructionData {
         this->prefixes.push_back(prefix);
     }
 
-    inline void set_opcode_1b(u8 x) {
-        this->opcode[0] = std::make_pair(true, x);
-        this->opcode[1] = std::make_pair(false, 0);
-        this->opcode[2] = std::make_pair(false, 0);
-    }
-
-    inline void set_opcode_2b(u8 x, u8 y) {
-        this->opcode[0] = std::make_pair(true, x);
-        this->opcode[1] = std::make_pair(true, y);
-        this->opcode[2] = std::make_pair(false, 0);
-    }
-
-    inline void set_opcode_3b(u8 x, u8 y, u8 z) {
-        this->opcode[0] = std::make_pair(true, x);
-        this->opcode[1] = std::make_pair(true, y);
-        this->opcode[2] = std::make_pair(true, z);
-    }
-
     inline void set_opcode(const u8 *opc, u8 size) {
         u32 i;
         for(i = 0; i < size; i++) {
@@ -202,7 +183,6 @@ struct alignas(16) InstructionData {
     inline void set_modrm(u8 mod, u8 reg, u8 rm) {
         this->has_modrm = true;
         this->modrm = (mod << 6) | (reg << 3) | rm;
-        // printf("%u\n", (reg << 3));
     }
 
     inline void set_sib(u8 scale, u8 index, u8 base) {
@@ -280,7 +260,9 @@ constexpr u8 ADDR_INVALID_INDEX = 0xFF;
 
 struct AddressValue {
     u32 displacement;
-    u8 scale, index, base; // 0xFF is the invalid value of index and base fields
+
+    /* An index or base with a value of 0xFF means they are invalid. */
+    u8 scale, index, base;
 
     inline AddressValue(): displacement(0), scale(0), index(0xFF), base(0xFF) {}
 
@@ -297,6 +279,11 @@ struct AddressValue {
     }
 };
 
+struct MemoryValue {
+    u8 size;
+    AddressValue addr;
+};
+
 inline AddressValue make_addr(u32 displacement, u8 scale, u8 index, u8 base) {
     AddressValue addr;
     addr.displacement = displacement;
@@ -306,24 +293,43 @@ inline AddressValue make_addr(u32 displacement, u8 scale, u8 index, u8 base) {
     return addr;
 }
 
+inline MemoryValue make_mem(u8 size, u32 displacement, u8 scale, u8 index, u8 base) {
+    MemoryValue mem;
+    mem.size = size;
+    mem.addr = make_addr(displacement, scale, index, base);
+    return mem;
+}
+
 struct EncodingData {
     u8 opcode;
+
     u8 prefix[4];
+
     u8 enc_opcode[3];
+
     u8 opcode_size;
-    u32 op_type;
-    u8 direction;
+
+    /* Operand encoding (Op/En in the intel SDM) */
+    u32 op_en;
+
     u8 default_modrm_reg;
+
     bool is_8_bit;
 
-    /* Sometimes we encode the register operand in the opcode */
-    bool enc_operand_in_opcode;
+    inline bool encode_operand_in_opcode() const {
+        return this->op_en == OPERAND_ENCODING_O || this->op_en == OPERAND_ENCODING_OI;
+    }
 };
 
 enum OperatingMode {
-    MODE_16_BIT, // Real mode/virtual 8086 mode
-    MODE_32_BIT, // Protected/compatibility mode
-    MODE_64_BIT, // Long mode
+    /* Real/virtual 8086 mode */
+    MODE_16_BIT,
+
+    /* Protected/compatibility mode */
+    MODE_32_BIT,
+
+    /* Long mode */
+    MODE_64_BIT,
 };
 
 enum Opcodes : u8 {
@@ -335,25 +341,30 @@ enum Opcodes : u8 {
     IDIV = 0x05,
     MOV = 0x06,
     CALL = 0x07,
-    JMP = 0x08
+    JMP = 0x08,
+    PUSH = 0x09,
+    POP = 0x0A,
+    RET = 0x0B
 };
 
 using EncodingList = std::vector<EncodingData>;
 
-InstructionData encode_r_rm(EncodingData data, Reg rm);
-InstructionData encode_r_reg(EncodingData data, Reg reg);
+InstructionData encode_r(EncodingData data, Reg reg);
 InstructionData encode_i(EncodingData data, ImmediateValue imm);
+InstructionData encode_m(EncodingData data, MemoryValue mem);
 InstructionData encode_rr(EncodingData data, Reg reg, Reg rm);
 InstructionData encode_ri(EncodingData data, Reg r, bool is_rm, ImmediateValue imm);
-InstructionData encode_rm(EncodingData data, Reg reg, AddressValue addr);
-InstructionData encode_mi(EncodingData data, AddressValue addr, ImmediateValue imm);
+InstructionData encode_rm(EncodingData data, Reg reg, MemoryValue mem);
+InstructionData encode_mi(EncodingData data, MemoryValue mem, ImmediateValue imm);
 
+InstructionData encode_r(u8 opcode, Reg r1);
 InstructionData encode_i(u8 opcode, ImmediateValue imm);
+InstructionData encode_m(u8 opcode, MemoryValue mem);
 InstructionData encode_rr(u8 opcode, Reg r1, Reg r2);
 InstructionData encode_ri(u8 opcode, Reg r1, ImmediateValue imm);
-InstructionData encode_rm(u8 opcode, Reg r1, AddressValue addr);
-InstructionData encode_mr(u8 opcode, AddressValue addr, Reg r1);
-InstructionData encode_mi(u8 opcode, AddressValue addr, ImmediateValue imm);
+InstructionData encode_rm(u8 opcode, Reg r1, MemoryValue mem);
+InstructionData encode_mr(u8 opcode, MemoryValue mem, Reg r1);
+InstructionData encode_mi(u8 opcode, MemoryValue mem, ImmediateValue imm);
 
 void set_mode(OperatingMode mode);
 OperatingMode get_current_mode();
