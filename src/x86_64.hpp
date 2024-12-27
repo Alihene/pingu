@@ -4,6 +4,7 @@
 #include <utility>
 #include <span>
 #include <type_traits>
+#include <cstdio>
 
 #include "util.hpp"
 
@@ -101,15 +102,19 @@ constexpr u8 REX_B = 1;
  * These types are taken from the Intel SDM volume 2 to remove any ambiguity.
  * https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html
  */
-constexpr u32 OPERAND_ENCODING_ZO = 0;
-constexpr u32 OPERAND_ENCODING_MR = 1;
-constexpr u32 OPERAND_ENCODING_RM = 2;
-constexpr u32 OPERAND_ENCODING_OI = 3;
-constexpr u32 OPERAND_ENCODING_MI = 4;
-constexpr u32 OPERAND_ENCODING_M = 5;
-constexpr u32 OPERAND_ENCODING_O = 6;
-constexpr u32 OPERAND_ENCODING_I = 7;
-constexpr u32 OPERAND_ENCODING_R = 8;
+constexpr u32 OP_EN_ZO = 0;
+constexpr u32 OP_EN_MR = 1;
+constexpr u32 OP_EN_RM = 2;
+constexpr u32 OP_EN_OI = 3;
+constexpr u32 OP_EN_MI = 4;
+constexpr u32 OP_EN_M = 5;
+constexpr u32 OP_EN_O = 6;
+constexpr u32 OP_EN_I = 7;
+constexpr u32 OP_EN_R = 8;
+constexpr u32 OP_EN_MRI = 9;
+constexpr u32 OP_EN_RMI = 10;
+/* Note: this is basically the same as OP_EN_I */
+constexpr u32 OP_EN_D = 11;
 
 struct alignas(16) InstructionData {
     std::vector<u8> prefixes;
@@ -169,13 +174,13 @@ struct alignas(16) InstructionData {
     }
 
     inline void set_opcode(const u8 *opc, u8 size) {
-        u32 i;
-        for(i = 0; i < size; i++) {
+        u32 k = 0;
+        for(i32 i = 0; i < size; i++) {
             this->opcode[i] = std::make_pair(true, opc[i]);
-            i++;
+            k++;
         }
 
-        for(u32 j = i; j < 3; j++) {
+        for(u32 j = k; j < 3; j++) {
             this->opcode[j] = std::make_pair(false, (u8) 0);
         }
     }
@@ -317,7 +322,7 @@ struct EncodingData {
     bool is_8_bit;
 
     inline bool encode_operand_in_opcode() const {
-        return this->op_en == OPERAND_ENCODING_O || this->op_en == OPERAND_ENCODING_OI;
+        return this->op_en == OP_EN_O || this->op_en == OP_EN_OI;
     }
 };
 
@@ -336,7 +341,7 @@ enum Opcodes : u8 {
     NOP = 0x00,
     ADD = 0x01,
     SUB = 0x02,
-    MUL = 0x03,
+    IMUL = 0x03,
     DIV = 0x04,
     IDIV = 0x05,
     MOV = 0x06,
@@ -344,11 +349,13 @@ enum Opcodes : u8 {
     JMP = 0x08,
     PUSH = 0x09,
     POP = 0x0A,
-    RET = 0x0B
+    RET = 0x0B,
+    SYSCALL = 0x0C,
 };
 
 using EncodingList = std::vector<EncodingData>;
 
+InstructionData encode_zo(EncodingData data);
 InstructionData encode_r(EncodingData data, Reg reg);
 InstructionData encode_i(EncodingData data, ImmediateValue imm);
 InstructionData encode_m(EncodingData data, MemoryValue mem);
@@ -357,6 +364,7 @@ InstructionData encode_ri(EncodingData data, Reg r, bool is_rm, ImmediateValue i
 InstructionData encode_rm(EncodingData data, Reg reg, MemoryValue mem);
 InstructionData encode_mi(EncodingData data, MemoryValue mem, ImmediateValue imm);
 
+InstructionData encode_zo(u8 opcode);
 InstructionData encode_r(u8 opcode, Reg r1);
 InstructionData encode_i(u8 opcode, ImmediateValue imm);
 InstructionData encode_m(u8 opcode, MemoryValue mem);

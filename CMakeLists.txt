@@ -6,4 +6,4 @@ set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_CXX_FLAGS "-std=c++20 ${CMAKE_CXX_FLAGS} -Wall -Wpedantic -O3 -g -march=native -mtune=native")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_executable(${CMAKE_PROJECT_NAME} src/main.cpp src/x86_64.cpp)
+add_executable(${CMAKE_PROJECT_NAME} src/main.cpp src/x86_64.cpp src/elf.cpp)

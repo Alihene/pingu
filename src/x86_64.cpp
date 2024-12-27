@@ -10,162 +10,66 @@ static x86_64::OperatingMode current_mode = x86_64::MODE_64_BIT;
 /* For each instruction, the encodings are sorted in ascending order by their opcode */
 static std::unordered_map<u8, x86_64::EncodingList> instructions = {
     {x86_64::ADD, {
-        {
-            x86_64::ADD,
-            {0x00},
-            {0x00, 0x00, 0x00},
-            1,
-            x86_64::OPERAND_ENCODING_MR,
-            // x86_64::OPERAND_DIRECTION_RM_REG,
-            0,
-            true
-        },
-        {
-            x86_64::ADD,
-            {0x00},
-            {0x01, 0x00, 0x00},
-            1,
-            x86_64::OPERAND_ENCODING_MR,
-            // x86_64::OPERAND_DIRECTION_RM_REG,
-            0,
-            false
-        },
-        {
-            x86_64::ADD,
-            {0x00},
-            {0x02, 0x00, 0x00},
-            1,
-            x86_64::OPERAND_ENCODING_RM,
-            // x86_64::OPERAND_DIRECTION_REG_RM,
-            0,
-            true
-        },
-        {
-            x86_64::ADD,
-            {0x00},
-            {0x03, 0x00, 0x00},
-            1,
-            x86_64::OPERAND_ENCODING_RM,
-            // x86_64::OPERAND_DIRECTION_REG_RM,
-            0,
-            false
-        },
-        {
-            x86_64::ADD,
-            {0x00},
-            {0x80, 0x00, 0x00},
-            1,
-            x86_64::OPERAND_ENCODING_MI,
-            // x86_64::OPERAND_DIRECTION_RM_IMM,
-            0,
-            true
-        },
-        {
-            x86_64::ADD,
-            {0x00},
-            {0x81, 0x00, 0x00},
-            1,
-            x86_64::OPERAND_ENCODING_MI,
-            // x86_64::OPERAND_DIRECTION_RM_IMM,
-            0,
-            false
-        },
+        {x86_64::ADD, {0x00}, {0x00, 0x00, 0x00}, 1, x86_64::OP_EN_MR, 0, true},
+        {x86_64::ADD, {0x00}, {0x01, 0x00, 0x00}, 1, x86_64::OP_EN_MR, 0, false},
+        {x86_64::ADD, {0x00}, {0x02, 0x00, 0x00}, 1, x86_64::OP_EN_RM, 0, true},
+        {x86_64::ADD, {0x00}, {0x03, 0x00, 0x00}, 1, x86_64::OP_EN_RM, 0, false},
+        {x86_64::ADD, {0x00}, {0x80, 0x00, 0x00}, 1, x86_64::OP_EN_MI, 0, true},
+        {x86_64::ADD, {0x00}, {0x81, 0x00, 0x00}, 1, x86_64::OP_EN_MI, 0, false},
     }},
-
+    {x86_64::SUB, {
+        {x86_64::SUB, {0x00}, {0x28, 0x00, 0x00}, 1, x86_64::OP_EN_MR, 0, true},
+        {x86_64::SUB, {0x00}, {0x29, 0x00, 0x00}, 1, x86_64::OP_EN_MR, 0, false},
+        {x86_64::SUB, {0x00}, {0x2A, 0x00, 0x00}, 1, x86_64::OP_EN_RM, 0, true},
+        {x86_64::SUB, {0x00}, {0x2B, 0x00, 0x00}, 1, x86_64::OP_EN_RM, 0, false},
+        {x86_64::SUB, {0x00}, {0x80, 0x00, 0x00}, 1, x86_64::OP_EN_MI, 5, true},
+        {x86_64::SUB, {0x00}, {0x81, 0x00, 0x00}, 1, x86_64::OP_EN_MI, 5, false},
+    }},
+    {x86_64::IMUL, {
+        /* TODO: needs RMI encoding support */
+        {x86_64::IMUL, {0x00}, {0x0F, 0xAF, 0x00}, 2, x86_64::OP_EN_RM, 0, false},
+    }},
+    {x86_64::DIV, {
+        {x86_64::DIV, {0x00}, {0xF6, 0x00, 0x00}, 1, x86_64::OP_EN_M, 6, true},
+        {x86_64::DIV, {0x00}, {0xF7, 0x00, 0x00}, 1, x86_64::OP_EN_M, 6, false},
+    }},
+    {x86_64::IDIV, {
+        {x86_64::DIV, {0x00}, {0xF6, 0x00, 0x00}, 1, x86_64::OP_EN_M, 7, true},
+        {x86_64::DIV, {0x00}, {0xF7, 0x00, 0x00}, 1, x86_64::OP_EN_M, 7, false},
+    }},
     {x86_64::MOV, {
-        {
-            x86_64::MOV,
-            {0x00},
-            {0x88, 0x00, 0x00},
-            1,
-            x86_64::OPERAND_ENCODING_MR,
-            // x86_64::OPERAND_DIRECTION_RM_REG,
-            0,
-            true
-        },
-        {
-            x86_64::MOV,
-            {0x00},
-            {0x89, 0x00, 0x00},
-            1,
-            x86_64::OPERAND_ENCODING_MR,
-            // x86_64::OPERAND_DIRECTION_RM_REG,
-            0,
-            false
-        },
-        {
-            x86_64::MOV,
-            {0x00},
-            {0x8A, 0x00, 0x00},
-            1,
-            x86_64::OPERAND_ENCODING_RM,
-            // x86_64::OPERAND_DIRECTION_REG_RM,
-            0,
-            true
-        },
-        {
-            x86_64::MOV,
-            {0x00},
-            {0x8B, 0x00, 0x00},
-            1,
-            x86_64::OPERAND_ENCODING_RM,
-            // x86_64::OPERAND_DIRECTION_REG_RM,
-            0,
-            false
-        },
-        // TODO: opcode B0
-        {
-            x86_64::MOV,
-            {0x00},
-            {0xB8, 0x00, 0x00},
-            1,
-            x86_64::OPERAND_ENCODING_OI,
-            // x86_64::OPERAND_DIRECTION_REG_IMM,
-            0,
-            false
-        },
-        {
-            x86_64::MOV,
-            {0x00},
-            {0xC6, 0x00, 0x00},
-            1,
-            x86_64::OPERAND_ENCODING_MI,
-            // x86_64::OPERAND_DIRECTION_RM_IMM,
-            0,
-            true
-        },
-        {
-            x86_64::MOV,
-            {0x00},
-            {0xC7, 0x00, 0x00},
-            1,
-            x86_64::OPERAND_ENCODING_MI,
-            // x86_64::OPERAND_DIRECTION_RM_IMM,
-            0,
-            false
-        },
+        {x86_64::MOV, {0x00}, {0x88, 0x00, 0x00}, 1, x86_64::OP_EN_MR, 0, true},
+        {x86_64::MOV, {0x00}, {0x89, 0x00, 0x00}, 1, x86_64::OP_EN_MR, 0, false},
+        {x86_64::MOV, {0x00}, {0x8A, 0x00, 0x00}, 1, x86_64::OP_EN_RM, 0, true},
+        {x86_64::MOV, {0x00}, {0x8B, 0x00, 0x00}, 1, x86_64::OP_EN_RM, 0, false},
+        {x86_64::MOV, {0x00}, {0xB0, 0x00, 0x00}, 1, x86_64::OP_EN_OI, 0, true},
+        {x86_64::MOV, {0x00}, {0xB8, 0x00, 0x00}, 1, x86_64::OP_EN_OI, 0, false},
+        {x86_64::MOV, {0x00}, {0xC6, 0x00, 0x00}, 1, x86_64::OP_EN_MI, 0, true},
+        {x86_64::MOV, {0x00}, {0xC7, 0x00, 0x00}, 1, x86_64::OP_EN_MI, 0, false},
+    }},
+    {x86_64::CALL, {
+        {x86_64::CALL, {0x00}, {0xE8, 0x00, 0x00}, 1, x86_64::OP_EN_D, 0, false},
+        {x86_64::CALL, {0x00}, {0xFF, 0x00, 0x00}, 1, x86_64::OP_EN_M, 2, false},
+    }},
+    {x86_64::JMP, {
+        {x86_64::JMP, {0x00}, {0xE9, 0x00, 0x00}, 1, x86_64::OP_EN_D, 0, false},
+        {x86_64::JMP, {0x00}, {0xFF, 0x00, 0x00}, 1, x86_64::OP_EN_M, 4, false},
     }},
     {x86_64::PUSH, {
-        {
-            x86_64::PUSH,
-            {0x00},
-            {0x50, 0x00, 0x00},
-            1,
-            x86_64::OPERAND_ENCODING_O,
-            // x86_64::OPERAND_DIRECTION_RM,
-            0,
-            false
-        },
-        {
-            x86_64::PUSH,
-            {0x00},
-            {0xFF, 0x00, 0x00},
-            1,
-            x86_64::OPERAND_ENCODING_M,
-            // x86_64::OPERAND_DIRECTION_RM,
-            6,
-            false
-        },
+        {x86_64::PUSH, {0x00}, {0x50, 0x00, 0x00}, 1, x86_64::OP_EN_O, 0, false},
+        {x86_64::PUSH, {0x00}, {0x68, 0x00, 0x00}, 1, x86_64::OP_EN_I, 0, false},
+        {x86_64::PUSH, {0x00}, {0x6A, 0x00, 0x00}, 1, x86_64::OP_EN_I, 0, true},
+        {x86_64::PUSH, {0x00}, {0xFF, 0x00, 0x00}, 1, x86_64::OP_EN_M, 6, false},
+    }},
+    {x86_64::POP, {
+        {x86_64::POP, {0x00}, {0x8F, 0x00, 0x00}, 1, x86_64::OP_EN_M, false},
+        {x86_64::POP, {0x00}, {0x58, 0x00, 0x00}, 1, x86_64::OP_EN_O, false},
+    }},
+    {x86_64::RET, {
+        {x86_64::RET, {0x00}, {0xC3, 0x00, 0x00}, 1, x86_64::OP_EN_ZO, false},
+    }},
+    {x86_64::SYSCALL, {
+        {x86_64::SYSCALL, {0x00}, {0x0F, 0x05, 0x00}, 2, x86_64::OP_EN_ZO, false},
     }},
 };
 
@@ -177,6 +81,12 @@ static std::vector<u8> default_64_bit_opcdoes = {
 
 static inline bool is_default_64_bit(u8 opcode) {
     return std::find(default_64_bit_opcdoes.begin(), default_64_bit_opcdoes.end(), opcode) != default_64_bit_opcdoes.end();
+}
+
+x86_64::InstructionData x86_64::encode_zo(x86_64::EncodingData data) {
+    x86_64::InstructionData insn;
+    insn.set_opcode(data.enc_opcode, data.opcode_size);
+    return insn;
 }
 
 x86_64::InstructionData x86_64::encode_r(x86_64::EncodingData data, x86_64::Reg reg) {
@@ -671,9 +581,19 @@ x86_64::InstructionData x86_64::encode_mi(x86_64::EncodingData data, x86_64::Mem
     return insn;
 }
 
+x86_64::InstructionData x86_64::encode_zo(u8 opcode) {
+    for(EncodingData d : instructions[opcode]) {
+        if(d.op_en == x86_64::OP_EN_ZO) {
+            return x86_64::encode_zo(d);
+        }
+    }
+
+    return x86_64::InstructionData();
+}
+
 x86_64::InstructionData x86_64::encode_r(u8 opcode, x86_64::Reg r1) {
     for(EncodingData d : instructions[opcode]) {
-        if(d.op_en == x86_64::OPERAND_ENCODING_R || d.op_en == x86_64::OPERAND_ENCODING_M || d.op_en == x86_64::OPERAND_ENCODING_O) {
+        if(d.op_en == x86_64::OP_EN_R || d.op_en == x86_64::OP_EN_M || d.op_en == x86_64::OP_EN_O) {
             return x86_64::encode_r(d, r1);
         }
     }
@@ -683,8 +603,14 @@ x86_64::InstructionData x86_64::encode_r(u8 opcode, x86_64::Reg r1) {
 
 x86_64::InstructionData x86_64::encode_i(u8 opcode, x86_64::ImmediateValue imm) {
     for(EncodingData d : instructions[opcode]) {
-        if(d.op_en == x86_64::OPERAND_ENCODING_I) {
-            return x86_64::encode_i(d, imm);
+        if(d.op_en == x86_64::OP_EN_I || d.op_en == x86_64::OP_EN_D) {
+            if(imm.size == 1) {
+                if(d.is_8_bit) {
+                    return x86_64::encode_i(d, imm);
+                }
+            } else {
+                return x86_64::encode_i(d, imm);
+            }
         }
     }
 
@@ -693,7 +619,8 @@ x86_64::InstructionData x86_64::encode_i(u8 opcode, x86_64::ImmediateValue imm) 
 
 x86_64::InstructionData x86_64::encode_m(u8 opcode, x86_64::MemoryValue mem) {
     for(EncodingData d : instructions[opcode]) {
-        if(d.op_en == x86_64::OPERAND_ENCODING_M) {
+        if(d.op_en == x86_64::OP_EN_M) {
+            /* I don't think we need to test for 8 bits here */
             return x86_64::encode_m(d, mem);
         }
     }
@@ -703,20 +630,20 @@ x86_64::InstructionData x86_64::encode_m(u8 opcode, x86_64::MemoryValue mem) {
 
 x86_64::InstructionData x86_64::encode_rr(u8 opcode, x86_64::Reg r1, x86_64::Reg r2) {
     for(EncodingData d : instructions[opcode]) {
-        if(d.op_en == x86_64::OPERAND_ENCODING_MR || d.op_en == x86_64::OPERAND_ENCODING_RM) {
+        if(d.op_en == x86_64::OP_EN_MR || d.op_en == x86_64::OP_EN_RM) {
             if(IS_REG_8_BIT(r1) && IS_REG_8_BIT(r2)) {
                 if(d.is_8_bit) {
-                    if(d.op_en == x86_64::OPERAND_ENCODING_RM) {
+                    if(d.op_en == x86_64::OP_EN_RM) {
                         return x86_64::encode_rr(d, r1, r2);
-                    } else if(d.op_en == x86_64::OPERAND_ENCODING_MR) {
+                    } else if(d.op_en == x86_64::OP_EN_MR) {
                         return x86_64::encode_rr(d, r2, r1);
                     }
                 }
             } else {
                 if(!d.is_8_bit) {
-                    if(d.op_en == x86_64::OPERAND_ENCODING_RM) {
+                    if(d.op_en == x86_64::OP_EN_RM) {
                         return x86_64::encode_rr(d, r1, r2);
-                    } else if(d.op_en == x86_64::OPERAND_ENCODING_MR) {
+                    } else if(d.op_en == x86_64::OP_EN_MR) {
                         return x86_64::encode_rr(d, r2, r1);
                     }
                 }
@@ -729,22 +656,22 @@ x86_64::InstructionData x86_64::encode_rr(u8 opcode, x86_64::Reg r1, x86_64::Reg
 
 x86_64::InstructionData x86_64::encode_ri(u8 opcode, x86_64::Reg r1, x86_64::ImmediateValue imm) {
     for(EncodingData d : instructions[opcode]) {
-        if(d.op_en == x86_64::OPERAND_ENCODING_OI || d.op_en == x86_64::OPERAND_ENCODING_MI) {
+        if(d.op_en == x86_64::OP_EN_OI || d.op_en == x86_64::OP_EN_MI) {
             if(IS_REG_8_BIT(r1)) {
                 if(d.is_8_bit) {
-                    if(d.op_en == x86_64::OPERAND_ENCODING_OI) {
+                    if(d.op_en == x86_64::OP_EN_OI) {
                         /* If the type is OI, we cannot have r/m because only reg can be encoded in the opcode */
                         return x86_64::encode_ri(d, r1, false, imm);
-                    } else if(d.op_en == x86_64::OPERAND_ENCODING_MI) {
+                    } else if(d.op_en == x86_64::OP_EN_MI) {
                         return x86_64::encode_ri(d, r1, true, imm);
                     }
                 }
             } else {
                 if(!d.is_8_bit) {
-                    if(d.op_en == x86_64::OPERAND_ENCODING_OI) {
+                    if(d.op_en == x86_64::OP_EN_OI) {
                         /* If the type is OI, we cannot have r/m because only reg can be encoded in the opcode */
                         return x86_64::encode_ri(d, r1, false, imm);
-                    } else if(d.op_en == x86_64::OPERAND_ENCODING_MI) {
+                    } else if(d.op_en == x86_64::OP_EN_MI) {
                         return x86_64::encode_ri(d, r1, true, imm);
                     }
                 }
@@ -761,7 +688,7 @@ x86_64::InstructionData x86_64::encode_ri(u8 opcode, x86_64::Reg r1, x86_64::Imm
  */
 x86_64::InstructionData x86_64::encode_rm(u8 opcode, x86_64::Reg r1, x86_64::MemoryValue mem) {
     for(EncodingData d : instructions[opcode]) {
-        if(d.op_en == x86_64::OPERAND_ENCODING_RM) {
+        if(d.op_en == x86_64::OP_EN_RM) {
             if(IS_REG_8_BIT(r1)) {
                 if(d.is_8_bit) {
                     return x86_64::encode_rm(d, r1, mem);
@@ -779,7 +706,7 @@ x86_64::InstructionData x86_64::encode_rm(u8 opcode, x86_64::Reg r1, x86_64::Mem
 
 x86_64::InstructionData x86_64::encode_mr(u8 opcode, x86_64::MemoryValue mem, x86_64::Reg r1) {
     for(EncodingData d : instructions[opcode]) {
-        if(d.op_en == x86_64::OPERAND_ENCODING_MR) {
+        if(d.op_en == x86_64::OP_EN_MR) {
             if(IS_REG_8_BIT(r1)) {
                 if(d.is_8_bit) {
                     return x86_64::encode_rm(d, r1, mem);
@@ -798,7 +725,7 @@ x86_64::InstructionData x86_64::encode_mr(u8 opcode, x86_64::MemoryValue mem, x8
 x86_64::InstructionData x86_64::encode_mi(u8 opcode, x86_64::MemoryValue mem, x86_64::ImmediateValue imm) {
     for(EncodingData d : instructions[opcode]) {
         /* Note: we don't check for OI because we're moving imm to r/m which cannot be encoded in the opcode */
-        if(d.op_en == x86_64::OPERAND_ENCODING_MI) {
+        if(d.op_en == x86_64::OP_EN_MI) {
             if(imm.size == 1) {
                 if(d.is_8_bit) {
                     return x86_64::encode_mi(d, mem, imm);

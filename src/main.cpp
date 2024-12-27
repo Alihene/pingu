@@ -5,6 +5,7 @@
 #include <cstdio>
 
 #include "x86_64.hpp"
+#include "elf.hpp"
 
 static void print_bytes(const std::vector<u8> &bytes) {
     for(u8 b : bytes) {
@@ -124,6 +125,35 @@ int main() {
         .encode(bytes);
     print_bytes(bytes);
     bytes.clear();
+
+    x86_64::encode_i(
+        x86_64::PUSH,
+        x86_64::make_imm<u8>(1))
+        .encode(bytes);
+    print_bytes(bytes);
+    bytes.clear();
+
+    x86_64::encode_i(
+        x86_64::PUSH,
+        x86_64::make_imm<u32>(0x12345678))
+        .encode(bytes);
+    print_bytes(bytes);
+    bytes.clear();
+
+    x86_64::encode_ri(x86_64::MOV, x86_64::REG_EAX, x86_64::make_imm<u32>(60)).encode(bytes);
+    print_bytes(bytes);
+    bytes.clear();
+
+    x86_64::encode_ri(x86_64::MOV, x86_64::REG_EDI, x86_64::make_imm<u32>(0)).encode(bytes);
+    print_bytes(bytes);
+    bytes.clear();
+
+    x86_64::encode_zo(x86_64::SYSCALL).encode(bytes);
+    print_bytes(bytes);
+    bytes.clear();
+
+    ELF::ElfFile elf = ELF::init_elf();
+    ELF::write("test.o", elf);
     
     return 0;
 }
