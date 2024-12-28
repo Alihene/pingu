@@ -220,12 +220,12 @@ struct alignas(16) InstructionData {
 
         if(this->has_displacement_value) {
             for(u32 i = 0; i < this->displacement_value_size; i++) {
-                out_bytes.push_back((this->displacement_value & (0xFF << (i * 8))) >> (i * 8));
+                out_bytes.push_back((this->displacement_value & (0xFFULL << (i * 8))) >> (i * 8));
             }
         }
         if(this->has_immediate_value) {
             for(u32 i = 0; i < this->immediate_value_size; i++) {
-                out_bytes.push_back((this->immediate_value & (0xFF << (i * 8))) >> (i * 8));
+                out_bytes.push_back((this->immediate_value & (0xFFULL << (i * 8))) >> (i * 8));
             }
         }
     }

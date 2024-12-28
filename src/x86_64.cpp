@@ -416,8 +416,10 @@ x86_64::InstructionData x86_64::encode_rm(x86_64::EncodingData data, x86_64::Reg
 
     insn.set_opcode(data.enc_opcode, data.opcode_size);
     
-    /* We only need a SIB byte if we have a scaled index */
-    bool has_sib = addr.is_index_valid();
+    bool is_index_and_base_invalid = !addr.is_index_valid() && !addr.is_base_valid();
+
+    /* We only need a SIB byte if we have a scaled index OR if we have no base/index at all */
+    bool has_sib = addr.is_index_valid() || is_index_and_base_invalid;
 
     bool has_displacement = addr.displacement > 0;
 
@@ -440,7 +442,7 @@ x86_64::InstructionData x86_64::encode_rm(x86_64::EncodingData data, x86_64::Reg
     insn.set_modrm(
         mod,
         ENCODE_REG(reg),
-        has_sib ? 4 : ENCODE_REG(addr.base));
+        has_sib ? 0b100 : ENCODE_REG(addr.base));
 
     /*
      * Something like [rcx*4] would actually be encoded as [rcx*4+0x0].
@@ -452,15 +454,18 @@ x86_64::InstructionData x86_64::encode_rm(x86_64::EncodingData data, x86_64::Reg
         /* 101 (BP) is used to show that there is no base */
         u8 sib_base = !addr.is_base_valid() ? 0b101 : ENCODE_REG(addr.base);
 
-        insn.set_sib(addr.scale, ENCODE_REG(addr.index), sib_base);
+        /* 100 (SP) is used to show that there is no index */
+        u8 sib_index = !addr.is_index_valid() ? 0b100 : ENCODE_REG(addr.index);
+
+        insn.set_sib(addr.scale, sib_index, sib_base);
 
         /* SIB.base = 101 indicates that there is a displacement value */
         if(sib_base == 0b101 || has_displacement) {
-            insn.set_displacement(addr.displacement, addr.is_displacement_8_bit() ? 1 : 4);
+            insn.set_displacement(addr.displacement, addr.is_displacement_8_bit() && !is_index_and_base_invalid ? 1 : 4);
         }
     } else {
         if(has_displacement) {
-            insn.set_displacement(addr.displacement, addr.is_displacement_8_bit() ? 1 : 4);
+            insn.set_displacement(addr.displacement, addr.is_displacement_8_bit() && !is_index_and_base_invalid ? 1 : 4);
         }
     }
 
