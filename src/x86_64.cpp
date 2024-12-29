@@ -203,53 +203,29 @@ x86_64::InstructionData x86_64::encode_m(x86_64::EncodingData data, x86_64::Memo
     }
 
     insn.set_opcode(data.enc_opcode, data.opcode_size);
-    
-    /* We only need a SIB byte if we have a scaled index */
-    bool has_sib = addr.is_index_valid();
 
-    bool has_displacement = addr.displacement > 0;
-
-    u8 mod;
-    if(has_displacement && addr.is_base_valid()) {
-        if(addr.is_displacement_8_bit()) {
-            /* We can save space by using an 8 bit displacement if we can (not required) */
-            mod = 1;
-        } else {
-            mod = 2;
-        }
-    } else {
-        /*
-         * Either we have no displacement at all, or we do but since we don't have a base,
-         * the SIB byte indicates the displacement. Either way, mod must be 00 in this case.
-         */
-        mod = 0;
-    }
-
-    insn.set_modrm(
-        mod,
-        data.default_modrm_reg,
-        has_sib ? 4 : ENCODE_REG(addr.base));
-
-    /*
-     * Something like [rcx*4] would actually be encoded as [rcx*4+0x0].
-     * We need to account for this in case we are missing a base.
-     */
-    has_displacement |= (!addr.is_base_valid() && addr.is_index_valid());
-
-    if(has_sib) {
-        /* 101 (BP) is used to show that there is no base */
-        u8 sib_base = !addr.is_base_valid() ? 0b101 : ENCODE_REG(addr.base);
-
-        insn.set_sib(addr.scale, ENCODE_REG(addr.index), sib_base);
-
-        /* SIB.base = 101 indicates that there is a displacement value */
-        if(sib_base == 0b101 || has_displacement) {
-            insn.set_displacement(addr.displacement, addr.is_displacement_8_bit() ? 1 : 4);
-        }
-    } else {
-        if(has_displacement) {
-            insn.set_displacement(addr.displacement, addr.is_displacement_8_bit() ? 1 : 4);
-        }
+    if(addr.is_base_valid() && !addr.is_index_valid() && addr.displacement == 0) { /* [base] */
+        insn.set_modrm(0, data.default_modrm_reg, ENCODE_REG(addr.base));
+    } else if(addr.is_base_valid() && !addr.is_index_valid() && addr.displacement > 0) { /* [base+disp(8/32)] */
+        bool is_disp8 = addr.is_displacement_8_bit();
+        insn.set_modrm(is_disp8 ? 0b01 : 0b10, data.default_modrm_reg, ENCODE_REG(addr.base));
+        insn.set_displacement(addr.displacement, is_disp8 ? 1 : 4);
+    } else if(addr.is_base_valid() && addr.is_index_valid() && addr.displacement == 0) { /* [base+(index*scale)] */
+        insn.set_modrm(0, data.default_modrm_reg, 0b100);
+        insn.set_sib(addr.scale, ENCODE_REG(addr.index), ENCODE_REG(addr.base));
+    } else if(addr.is_base_valid() && addr.is_index_valid() && addr.displacement > 0) { /* [base+(index*scale)+disp(8/32)] */
+        bool is_disp8 = addr.is_displacement_8_bit();
+        insn.set_modrm(is_disp8 ? 0b01 : 0b10, data.default_modrm_reg, 0b100);
+        insn.set_sib(addr.scale, ENCODE_REG(addr.index), ENCODE_REG(addr.base));
+        insn.set_displacement(addr.displacement, is_disp8 ? 1 : 4);
+    } else if(!addr.is_base_valid() && addr.is_index_valid()) { /* [(index*scale)+disp32] */
+        insn.set_modrm(0, data.default_modrm_reg, 0b100);
+        insn.set_sib(addr.scale, addr.index, 0b101);
+        insn.set_displacement(addr.displacement, 4);
+    } else if(!addr.is_base_valid() && !addr.is_base_valid()) { /* [disp32] */
+        insn.set_modrm(0, data.default_modrm_reg, 0b100);
+        insn.set_sib(0, 0b100, 0b101);
+        insn.set_displacement(addr.displacement, 4);
     }
 
     return insn;
@@ -415,58 +391,29 @@ x86_64::InstructionData x86_64::encode_rm(x86_64::EncodingData data, x86_64::Reg
     }
 
     insn.set_opcode(data.enc_opcode, data.opcode_size);
-    
-    bool is_index_and_base_invalid = !addr.is_index_valid() && !addr.is_base_valid();
 
-    /* We only need a SIB byte if we have a scaled index OR if we have no base/index at all */
-    bool has_sib = addr.is_index_valid() || is_index_and_base_invalid;
-
-    bool has_displacement = addr.displacement > 0;
-
-    u8 mod;
-    if(has_displacement && addr.is_base_valid()) {
-        if(addr.is_displacement_8_bit()) {
-            /* We can save space by using an 8 bit displacement if we can (not required) */
-            mod = 1;
-        } else {
-            mod = 2;
-        }
-    } else {
-        /*
-         * Either we have no displacement at all, or we do but since we don't have a base,
-         * the SIB byte indicates the displacement. Either way, mod must be 00 in this case.
-         */
-        mod = 0;
-    }
-
-    insn.set_modrm(
-        mod,
-        ENCODE_REG(reg),
-        has_sib ? 0b100 : ENCODE_REG(addr.base));
-
-    /*
-     * Something like [rcx*4] would actually be encoded as [rcx*4+0x0].
-     * We need to account for this in case we are missing a base.
-     */
-    has_displacement |= (!addr.is_base_valid() && addr.is_index_valid());
-
-    if(has_sib) {
-        /* 101 (BP) is used to show that there is no base */
-        u8 sib_base = !addr.is_base_valid() ? 0b101 : ENCODE_REG(addr.base);
-
-        /* 100 (SP) is used to show that there is no index */
-        u8 sib_index = !addr.is_index_valid() ? 0b100 : ENCODE_REG(addr.index);
-
-        insn.set_sib(addr.scale, sib_index, sib_base);
-
-        /* SIB.base = 101 indicates that there is a displacement value */
-        if(sib_base == 0b101 || has_displacement) {
-            insn.set_displacement(addr.displacement, addr.is_displacement_8_bit() && !is_index_and_base_invalid ? 1 : 4);
-        }
-    } else {
-        if(has_displacement) {
-            insn.set_displacement(addr.displacement, addr.is_displacement_8_bit() && !is_index_and_base_invalid ? 1 : 4);
-        }
+    if(addr.is_base_valid() && !addr.is_index_valid() && addr.displacement == 0) { /* [base] */
+        insn.set_modrm(0, ENCODE_REG(reg), ENCODE_REG(addr.base));
+    } else if(addr.is_base_valid() && !addr.is_index_valid() && addr.displacement > 0) { /* [base+disp(8/32)] */
+        bool is_disp8 = addr.is_displacement_8_bit();
+        insn.set_modrm(is_disp8 ? 0b01 : 0b10, ENCODE_REG(reg), ENCODE_REG(addr.base));
+        insn.set_displacement(addr.displacement, is_disp8 ? 1 : 4);
+    } else if(addr.is_base_valid() && addr.is_index_valid() && addr.displacement == 0) { /* [base+(index*scale)] */
+        insn.set_modrm(0, ENCODE_REG(reg), 0b100);
+        insn.set_sib(addr.scale, ENCODE_REG(addr.index), ENCODE_REG(addr.base));
+    } else if(addr.is_base_valid() && addr.is_index_valid() && addr.displacement > 0) { /* [base+(index*scale)+disp(8/32)] */
+        bool is_disp8 = addr.is_displacement_8_bit();
+        insn.set_modrm(is_disp8 ? 0b01 : 0b10, ENCODE_REG(reg), 0b100);
+        insn.set_sib(addr.scale, ENCODE_REG(addr.index), ENCODE_REG(addr.base));
+        insn.set_displacement(addr.displacement, is_disp8 ? 1 : 4);
+    } else if(!addr.is_base_valid() && addr.is_index_valid()) { /* [(index*scale)+disp32] */
+        insn.set_modrm(0, ENCODE_REG(reg), 0b100);
+        insn.set_sib(addr.scale, addr.index, 0b101);
+        insn.set_displacement(addr.displacement, 4);
+    } else if(!addr.is_base_valid() && !addr.is_base_valid()) { /* [disp32] */
+        insn.set_modrm(0, ENCODE_REG(reg), 0b100);
+        insn.set_sib(0, 0b100, 0b101);
+        insn.set_displacement(addr.displacement, 4);
     }
 
     return insn;
@@ -507,53 +454,29 @@ x86_64::InstructionData x86_64::encode_mi(x86_64::EncodingData data, x86_64::Mem
     }
 
     insn.set_opcode(data.enc_opcode, data.opcode_size);
-    
-    /* We only need a SIB byte if we have a scaled index */
-    bool has_sib = addr.is_index_valid();
 
-    bool has_displacement = addr.displacement > 0;
-
-    u8 mod;
-    if(has_displacement && addr.is_base_valid()) {
-        if(addr.is_displacement_8_bit()) {
-            /* We can save space by using an 8 bit displacement if we can (not required) */
-            mod = 1;
-        } else {
-            mod = 2;
-        }
-    } else {
-        /*
-         * Either we have no displacement at all, or we do but since we don't have a base,
-         * the SIB byte indicates the displacement. Either way, mod must be 00 in this case.
-         */
-        mod = 0;
-    }
-
-    insn.set_modrm(
-        mod,
-        data.default_modrm_reg,
-        has_sib ? 4 : ENCODE_REG(addr.base));
-
-    /*
-     * Something like [rcx*4] would actually be encoded as [rcx*4+0x0].
-     * We need to account for this in case we are missing a base.
-     */
-    has_displacement |= (!addr.is_base_valid() && addr.is_index_valid()); // Edge case
-
-    if(has_sib) {
-        /* 101 (BP) is used to show that there is no base */
-        u8 sib_base = !addr.is_base_valid() ? 0b101 : ENCODE_REG(addr.base);
-
-        insn.set_sib(addr.scale, ENCODE_REG(addr.index), sib_base);
-
-        /* SIB.base = 101 indicates that there is a displacement value */
-        if(((insn.sib & 3) == 0b101) || has_displacement) {
-            insn.set_displacement(addr.displacement, addr.is_displacement_8_bit() ? 1 : 4);
-        }
-    } else {
-        if(has_displacement) {
-            insn.set_displacement(addr.displacement, addr.is_displacement_8_bit() ? 1 : 4);
-        }
+    if(addr.is_base_valid() && !addr.is_index_valid() && addr.displacement == 0) { /* [base] */
+        insn.set_modrm(0, data.default_modrm_reg, ENCODE_REG(addr.base));
+    } else if(addr.is_base_valid() && !addr.is_index_valid() && addr.displacement > 0) { /* [base+disp(8/32)] */
+        bool is_disp8 = addr.is_displacement_8_bit();
+        insn.set_modrm(is_disp8 ? 0b01 : 0b10, data.default_modrm_reg, ENCODE_REG(addr.base));
+        insn.set_displacement(addr.displacement, is_disp8 ? 1 : 4);
+    } else if(addr.is_base_valid() && addr.is_index_valid() && addr.displacement == 0) { /* [base+(index*scale)] */
+        insn.set_modrm(0, data.default_modrm_reg, 0b100);
+        insn.set_sib(addr.scale, ENCODE_REG(addr.index), ENCODE_REG(addr.base));
+    } else if(addr.is_base_valid() && addr.is_index_valid() && addr.displacement > 0) { /* [base+(index*scale)+disp(8/32)] */
+        bool is_disp8 = addr.is_displacement_8_bit();
+        insn.set_modrm(is_disp8 ? 0b01 : 0b10, data.default_modrm_reg, 0b100);
+        insn.set_sib(addr.scale, ENCODE_REG(addr.index), ENCODE_REG(addr.base));
+        insn.set_displacement(addr.displacement, is_disp8 ? 1 : 4);
+    } else if(!addr.is_base_valid() && addr.is_index_valid()) { /* [(index*scale)+disp32] */
+        insn.set_modrm(0, data.default_modrm_reg, 0b100);
+        insn.set_sib(addr.scale, addr.index, 0b101);
+        insn.set_displacement(addr.displacement, 4);
+    } else if(!addr.is_base_valid() && !addr.is_base_valid()) { /* [disp32] */
+        insn.set_modrm(0, data.default_modrm_reg, 0b100);
+        insn.set_sib(0, 0b100, 0b101);
+        insn.set_displacement(addr.displacement, 4);
     }
 
     switch(imm.size) {

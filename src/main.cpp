@@ -54,7 +54,7 @@ int main() {
     x86_64::encode_rm(
         x86_64::MOV,
         x86_64::REG_AX,
-        x86_64::make_mem(2, 0x1234, 2, x86_64::REG_ECX, x86_64::REG_R12D))
+        x86_64::make_mem(2, 0x1234, 0, x86_64::ADDR_INVALID_INDEX, x86_64::ADDR_INVALID_BASE))
         .encode(bytes);
     print_bytes(bytes);
     bytes.clear();
@@ -136,6 +136,21 @@ int main() {
     x86_64::encode_i(
         x86_64::PUSH,
         x86_64::make_imm<u32>(0x12345678))
+        .encode(bytes);
+    print_bytes(bytes);
+    bytes.clear();
+
+    x86_64::encode_m(
+        x86_64::PUSH,
+        x86_64::make_mem(8, 0x1234, 0, x86_64::ADDR_INVALID_INDEX, x86_64::ADDR_INVALID_BASE))
+        .encode(bytes);
+    print_bytes(bytes);
+    bytes.clear();
+
+    x86_64::encode_mi(
+        x86_64::MOV,
+        x86_64::make_mem(4, 0x1234, 0, x86_64::ADDR_INVALID_INDEX, x86_64::ADDR_INVALID_BASE),
+        x86_64::make_imm<u32>(0x5678))
         .encode(bytes);
     print_bytes(bytes);
     bytes.clear();

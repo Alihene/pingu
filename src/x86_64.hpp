@@ -7,6 +7,7 @@
 #include <cstdio>
 
 #include "util.hpp"
+#include "elf.hpp"
 
 namespace x86_64 {
 
@@ -231,6 +232,32 @@ struct alignas(16) InstructionData {
     }
 };
 
+constexpr u8 ADDR_INVALID_BASE = 0xFF;
+constexpr u8 ADDR_INVALID_INDEX = 0xFF;
+
+struct AddressValue {
+    u32 displacement;
+
+    /* An index or base with a value of 0xFF means they are invalid. */
+    u8 scale, index, base;
+
+    ELF::Symbol *sym;
+
+    inline AddressValue(): displacement(0), scale(0), index(0xFF), base(0xFF), sym(nullptr) {}
+
+    inline bool is_displacement_8_bit() const {
+        return (this->displacement & 0xFFFFFF00) == 0;
+    }
+
+    inline bool is_index_valid() const {
+        return this->index != ADDR_INVALID_INDEX;
+    }
+
+    inline bool is_base_valid() const {
+        return this->base != ADDR_INVALID_BASE;
+    }
+};
+
 struct alignas(16) ImmediateValue {
     u8 size;
     union {
@@ -259,30 +286,6 @@ inline ImmediateValue make_imm(T value) {
     }
     return imm;
 }
-
-constexpr u8 ADDR_INVALID_BASE = 0xFF;
-constexpr u8 ADDR_INVALID_INDEX = 0xFF;
-
-struct AddressValue {
-    u32 displacement;
-
-    /* An index or base with a value of 0xFF means they are invalid. */
-    u8 scale, index, base;
-
-    inline AddressValue(): displacement(0), scale(0), index(0xFF), base(0xFF) {}
-
-    inline bool is_displacement_8_bit() const {
-        return (this->displacement & 0xFFFFFF00) == 0;
-    }
-
-    inline bool is_index_valid() const {
-        return this->index != ADDR_INVALID_INDEX;
-    }
-
-    inline bool is_base_valid() const {
-        return this->base != ADDR_INVALID_BASE;
-    }
-};
 
 struct MemoryValue {
     u8 size;
