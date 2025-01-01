@@ -1,6 +1,7 @@
 #include "elf.hpp"
 
 #include <fstream>
+#include <cassert>
 
 static constexpr ELF::Elf64_Ehdr BASE_ELF_HEADER = {
     {
@@ -80,12 +81,14 @@ void ELF::ElfFile::append_symbol(const ELF::Symbol &symbol) {
     u32 name_index = 0;
     u16 section_index = 0;
 
-    auto &strtab_section = *this->get_section_by_name(".strtab");
-    name_index = strtab_section.data.size();
+    auto strtab_section = this->get_section_by_name(".strtab");
+    assert(strtab_section);
+
+    name_index = strtab_section->data.size();
     for(u32 i = 0; i < symbol.name.size(); i++) {
-        strtab_section.data.push_back(symbol.name[i]);
+        strtab_section->data.push_back(symbol.name[i]);
     }
-    strtab_section.data.push_back(0);
+    strtab_section->data.push_back(0);
 
     if(symbol.section == "undef") {
         section_index = 0;
@@ -95,7 +98,9 @@ void ELF::ElfFile::append_symbol(const ELF::Symbol &symbol) {
         section_index = this->get_section_by_name(symbol.section)->index;
     }
 
-    auto &symtab_section = *this->get_section_by_name(".symtab");
+    auto symtab_section = this->get_section_by_name(".symtab");
+    assert(symtab_section);
+
     ELF::Elf64_Sym sym = {
         name_index,
         symbol.type,
@@ -106,17 +111,13 @@ void ELF::ElfFile::append_symbol(const ELF::Symbol &symbol) {
     };
     u8 *sym_bytes = reinterpret_cast<u8*>(&sym);
     for(u32 i = 0; i < sizeof(ELF::Elf64_Sym); i++) {
-        symtab_section.data.push_back(sym_bytes[i]);
+        symtab_section->data.push_back(sym_bytes[i]);
     }
 }
 
 void ELF::ElfFile::append_reloc(std::string sym_name, u32 type, u64 reloc_addr, u64 addend) {
     auto symbol = this->get_symbol_by_name(sym_name);
-    
-    /* TODO: replace with assert */
-    if(!symbol) {
-        return;
-    }
+    assert(symbol);
 
     ELF::Elf64_Rela rela = {
         reloc_addr,
@@ -125,7 +126,10 @@ void ELF::ElfFile::append_reloc(std::string sym_name, u32 type, u64 reloc_addr, 
     };
 
     u8 *rela_bytes = reinterpret_cast<u8*>(&rela);
+
     auto rela_text_section = this->get_section_by_name(".rela.text");
+    assert(rela_text_section);
+
     for(u32 i = 0; i < sizeof(Elf64_Rela); i++) {
         rela_text_section->data.push_back(rela_bytes[i]);
     }
@@ -135,9 +139,11 @@ void ELF::ElfFile::write(std::string filename) {
     std::fstream file;
     file.open(filename, std::ios::app | std::ios::binary);
 
+    auto shstrtab_section = this->get_section_by_name(".shstrtab");
+    assert(shstrtab_section);
+
     this->header.e_shnum = this->sections.insertion_order.size();
-    /* TODO: we need an assert here */
-    this->header.e_shstrndx = this->get_section_by_name(".shstrtab")->index;
+    this->header.e_shstrndx = shstrtab_section->index;
 
     file.write(reinterpret_cast<const char*>(&this->header), sizeof(ELF::Elf64_Ehdr));
 
@@ -149,46 +155,50 @@ void ELF::ElfFile::write(std::string filename) {
     std::vector<u8> shstrtab_bytes;
 
     for(auto &section_name : this->sections.insertion_order) {
-        const auto &section = *this->get_section_by_name(section_name);
+        const auto section = this->get_section_by_name(section_name);
+        assert(section);
 
         sht.push_back({
             name_offset,
-            section.type,
-            section.flags,
+            section->type,
+            section->flags,
             0,
             0, /* Overwritten later on */
             0, /* Overwritten later on */
-            section.link,
-            section.info,
-            section.alignment,
-            section.entry_size,
+            section->link,
+            section->info,
+            section->alignment,
+            section->entry_size,
         });
 
-        name_offset += section.name.length() + 1;
+        name_offset += section->name.length() + 1;
         
-        for(u32 j = 0; j < section.name.length(); j++) {
-            shstrtab_bytes.push_back(section.name[j]);
+        for(u32 j = 0; j < section->name.length(); j++) {
+            shstrtab_bytes.push_back(section->name[j]);
         }
         shstrtab_bytes.push_back(0);
     }
 
     /* Push section names to .shstrtab */
-    auto &shstrtab_section = *this->get_section_by_name(".shstrtab");
     for(u32 i = 0; i < shstrtab_bytes.size(); i++) {
-        shstrtab_section.data.push_back(shstrtab_bytes[i]);
+        shstrtab_section->data.push_back(shstrtab_bytes[i]);
     }
 
     /* Finalise the section sizes */
     for(auto &section_name : this->sections.insertion_order) {
-        const auto &section = *this->get_section_by_name(section_name);
-        sht[section.index].sh_size = section.data.size();
+        const auto section = this->get_section_by_name(section_name);
+        assert(section);
+
+        sht[section->index].sh_size = section->data.size();
     }
 
     for(auto &section_name : this->sections.insertion_order) {
-        const auto &section = *this->get_section_by_name(section_name);
-        if(section.type != ELF::SHT_NULL) {
-            sht[section.index].sh_offset = offset;
-            offset += section.get_16_byte_aligned_size();
+        const auto section = this->get_section_by_name(section_name);
+        assert(section);
+
+        if(section->type != ELF::SHT_NULL) {
+            sht[section->index].sh_offset = offset;
+            offset += section->get_16_byte_aligned_size();
         }
     }
 
@@ -196,17 +206,18 @@ void ELF::ElfFile::write(std::string filename) {
 
 
     for(auto &section_name : this->sections.insertion_order) {
-        auto &section = *this->get_section_by_name(section_name);
+        const auto section = this->get_section_by_name(section_name);
+        assert(section);
 
-        if(section.data.size() == 0) {
+        if(section->data.size() == 0) {
             continue;
         }
 
-        file.write(reinterpret_cast<const char*>(&section.data[0]), section.data.size());
+        file.write(reinterpret_cast<const char*>(&section->data[0]), section->data.size());
 
         /* Resolve 16 byte alignment */
-        if(section.data.size() < section.get_16_byte_aligned_size()) {
-            for(u32 i = section.data.size(); i < section.get_16_byte_aligned_size(); i++) {
+        if(section->data.size() < section->get_16_byte_aligned_size()) {
+            for(u32 i = section->data.size(); i < section->get_16_byte_aligned_size(); i++) {
                 u8 c = 0;
                 file.write(reinterpret_cast<const char*>(&c), 1);
             }

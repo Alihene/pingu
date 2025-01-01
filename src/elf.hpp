@@ -73,8 +73,6 @@ struct Section {
     }
 };
 
-constexpr u8 SECTION_COUNT = 6;
-
 constexpr u32 SHT_NULL = 0;
 constexpr u32 SHT_PROGBITS = 1;
 constexpr u32 SHT_SYMTAB = 2;
