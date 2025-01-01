@@ -208,7 +208,10 @@ struct alignas(16) InstructionData {
         this->immediate_value = x;
     }
 
-    inline void encode(std::vector<u8> &out_bytes) const {
+    /* Returns a pair of the offsets of the displacement and immediate values respectively. Used for relocations. */
+    inline std::pair<u32, u32> encode(std::vector<u8> &out_bytes) const {
+        std::pair<u32, u32> value_offsets = std::make_pair<u32, u32>(0, 0);
+
         for(u32 i = 0; i < this->prefixes.size(); i++) {
             out_bytes.push_back(this->prefixes[i]);
         }
@@ -220,15 +223,18 @@ struct alignas(16) InstructionData {
         if(this->has_sib) out_bytes.push_back(this->sib);
 
         if(this->has_displacement_value) {
+            value_offsets.first = out_bytes.size();
             for(u32 i = 0; i < this->displacement_value_size; i++) {
                 out_bytes.push_back((this->displacement_value & (0xFFULL << (i * 8))) >> (i * 8));
             }
         }
         if(this->has_immediate_value) {
+            value_offsets.second = out_bytes.size();
             for(u32 i = 0; i < this->immediate_value_size; i++) {
                 out_bytes.push_back((this->immediate_value & (0xFFULL << (i * 8))) >> (i * 8));
             }
         }
+        return value_offsets;
     }
 };
 

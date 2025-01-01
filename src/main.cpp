@@ -155,49 +155,30 @@ int main() {
     print_bytes(bytes);
     bytes.clear();
 
-    x86_64::encode_ri(x86_64::MOV, x86_64::REG_EAX, x86_64::make_imm<u32>(1)).encode(bytes);
-    x86_64::encode_ri(x86_64::MOV, x86_64::REG_EDI, x86_64::make_imm<u32>(1)).encode(bytes);
-    x86_64::encode_ri(x86_64::MOV, x86_64::REG_EDX, x86_64::make_imm<u32>(14)).encode(bytes);
-    x86_64::encode_ri(x86_64::MOV, x86_64::REG_RSI, x86_64::make_imm<u64>(0)).encode(bytes);
-    x86_64::encode_zo(x86_64::SYSCALL).encode(bytes);
-
-    // x86_64::encode_rm(
-    //     x86_64::MOV,
-    //     x86_64::REG_RAX,
-    //     x86_64::make_mem(4, 0, 0, x86_64::ADDR_INVALID_INDEX, x86_64::ADDR_INVALID_BASE))
-    //     .encode(bytes);
-    x86_64::encode_ri(x86_64::MOV, x86_64::REG_EAX, x86_64::make_imm<u32>(0x3c)).encode(bytes);
-    x86_64::encode_ri(x86_64::MOV, x86_64::REG_EDI, x86_64::make_imm<u32>(0)).encode(bytes);
-    x86_64::encode_zo(x86_64::SYSCALL).encode(bytes);
-
     ELF::ElfFile elf = ELF::init_elf();
     elf.append_section("", ELF::SHT_NULL, 0, 0, 0, 0, 0);
     elf.append_section(".text", ELF::SHT_PROGBITS, 16, ELF::SHF_ALLOC | ELF::SHF_EXECINSTR, 0, 0, 0);
     elf.append_section(".data", ELF::SHT_PROGBITS, 4, ELF::SHF_ALLOC | ELF::SHF_WRITE, 0, 0, 0);
-    elf.append_section(".symtab", ELF::SHT_SYMTAB, 8, 0, sizeof(ELF::Elf64_Sym), 5, 4);
+    elf.append_section(".symtab", ELF::SHT_SYMTAB, 8, 0, sizeof(ELF::Elf64_Sym), 0, 0);
     elf.append_section(".shstrtab", ELF::SHT_STRTAB, 1, 0, 0, 0, 0);
     elf.append_section(".strtab", ELF::SHT_STRTAB, 1, 0, 0, 0, 0);
     elf.append_section(".rela.text", ELF::SHT_RELA, 8, 0, sizeof(ELF::Elf64_Rela), 3, 1);
 
-    ELF::Symbol symbol1 = {"", "undef", 0, 0, 0};
-    ELF::append_symbol(elf, symbol1);
+    ELF::append_symbol(elf, ELF::make_symbol("", "undef", 0, 0, 0));
+    ELF::append_symbol(elf, ELF::make_symbol(".text", ".text", ELF::STB_LOCAL, ELF::STT_SECTION, 0));
+    ELF::append_symbol(elf, ELF::make_symbol(".data", ".data", ELF::STB_LOCAL, ELF::STT_SECTION, 0));
+    ELF::append_symbol(elf, ELF::make_symbol("exit_code", ".data", ELF::STB_LOCAL, ELF::STT_NOTYPE, 0));
+    ELF::append_symbol(elf, ELF::make_symbol("msg", ".data", ELF::STB_LOCAL, ELF::STT_NOTYPE, 4));
+    ELF::append_symbol(elf, ELF::make_symbol("printf", "undef", ELF::STB_GLOBAL, ELF::STT_NOTYPE, 0));
+    ELF::append_symbol(elf, ELF::make_symbol("_start", ".text", ELF::STB_GLOBAL, ELF::STT_NOTYPE, 0));
 
-    ELF::Symbol symbol2 = {".text", ".text", ELF64_ST_INFO(ELF::STB_LOCAL, ELF::STT_SECTION), 0, 0};
-    ELF::append_symbol(elf, symbol2);
-
-    ELF::Symbol symbol3 = {".data", ".data", ELF64_ST_INFO(ELF::STB_LOCAL, ELF::STT_SECTION), 0, 0};
-    ELF::append_symbol(elf, symbol3);
-
-    // ELF::Symbol symbol4 = {"exit_code", ".data", ELF64_ST_INFO(ELF::STB_LOCAL, ELF::STT_NOTYPE), 0, 0};
-    // ELF::append_symbol(elf, symbol4);
-
-    ELF::Symbol symbol5 = {"msg", ".data", ELF64_ST_INFO(ELF::STB_LOCAL, ELF::STT_NOTYPE), 0, 0};
-    ELF::append_symbol(elf, symbol5);
-
-    ELF::Symbol symbol6 = {"_start", ".text", ELF64_ST_INFO(ELF::STB_GLOBAL, ELF::STT_NOTYPE), 0, 0};
-    ELF::append_symbol(elf, symbol6);
+    elf.get_section_by_name(".symtab")->info = elf.get_first_nonlocal_symbol_index();
+    elf.get_section_by_name(".symtab")->link = elf.get_section_by_name(".strtab")->index;
 
     elf.get_section_by_name(".data")->data.push_back(0x3C);
+    elf.get_section_by_name(".data")->data.push_back(0x00);
+    elf.get_section_by_name(".data")->data.push_back(0x00);
+    elf.get_section_by_name(".data")->data.push_back(0x00);
 
     elf.get_section_by_name(".data")->data.push_back('H');
     elf.get_section_by_name(".data")->data.push_back('e');
@@ -214,28 +195,18 @@ int main() {
     elf.get_section_by_name(".data")->data.push_back('!');
     elf.get_section_by_name(".data")->data.push_back('\n');
 
-    // ELF::Elf64_Rela rela2 = {
-    //     0x1F,
-    //     14ULL + (2ULL << 32),
-    //     0
-    // };
-    // u8 *rela_bytes = reinterpret_cast<u8*>(&rela2);
-    // for(u32 i = 0; i < sizeof(ELF::Elf64_Rela); i++) {
-    //     elf.get_section_by_name(".rela.text")->data.push_back(rela_bytes[i]);
-    // }
+    auto value_offsets = x86_64::encode_ri(x86_64::MOV, x86_64::REG_RDI, x86_64::make_imm<u64>(0)).encode(bytes);
+    elf.append_reloc(".data", 1, value_offsets.second, 4);
+    value_offsets = x86_64::encode_i(x86_64::CALL, x86_64::make_imm<u32>(0)).encode(bytes);
+    elf.append_reloc("printf", 2, value_offsets.second, -4);
 
-    ELF::Elf64_Rela rela = {
-        0x11,
-        1ULL + (2ULL << 32),
-        1
-    };
-    u8 *rela_bytes = reinterpret_cast<u8*>(&rela);
-    for(u32 i = 0; i < sizeof(ELF::Elf64_Rela); i++) {
-        elf.get_section_by_name(".rela.text")->data.push_back(rela_bytes[i]);
-    }
+    value_offsets = x86_64::encode_rm(x86_64::MOV, x86_64::REG_EAX, x86_64::make_mem(4, 0, 0, x86_64::ADDR_INVALID_INDEX, x86_64::ADDR_INVALID_BASE)).encode(bytes);
+    elf.append_reloc(".data", 11, value_offsets.first, 0);
+    x86_64::encode_ri(x86_64::MOV, x86_64::REG_EDI, x86_64::make_imm<u32>(0)).encode(bytes);
+    x86_64::encode_zo(x86_64::SYSCALL).encode(bytes);
 
     for(u8 b : bytes) {
-        elf.sections[1].data.push_back(b);
+        elf.get_section_by_name(".text")->data.push_back(b);
     }
     ELF::write("test.o", elf);
     
