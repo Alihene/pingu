@@ -155,25 +155,28 @@ int main() {
     print_bytes(bytes);
     bytes.clear();
 
-    ELF::ElfFile elf = ELF::init_elf();
+    ELF::ElfFile elf;
     elf.append_section("", ELF::SHT_NULL, 0, 0, 0, 0, 0);
     elf.append_section(".text", ELF::SHT_PROGBITS, 16, ELF::SHF_ALLOC | ELF::SHF_EXECINSTR, 0, 0, 0);
     elf.append_section(".data", ELF::SHT_PROGBITS, 4, ELF::SHF_ALLOC | ELF::SHF_WRITE, 0, 0, 0);
     elf.append_section(".symtab", ELF::SHT_SYMTAB, 8, 0, sizeof(ELF::Elf64_Sym), 0, 0);
     elf.append_section(".shstrtab", ELF::SHT_STRTAB, 1, 0, 0, 0, 0);
     elf.append_section(".strtab", ELF::SHT_STRTAB, 1, 0, 0, 0, 0);
-    elf.append_section(".rela.text", ELF::SHT_RELA, 8, 0, sizeof(ELF::Elf64_Rela), 3, 1);
+    elf.append_section(".rela.text", ELF::SHT_RELA, 8, 0, sizeof(ELF::Elf64_Rela), 0, 0);
 
-    ELF::append_symbol(elf, ELF::make_symbol("", "undef", 0, 0, 0));
-    ELF::append_symbol(elf, ELF::make_symbol(".text", ".text", ELF::STB_LOCAL, ELF::STT_SECTION, 0));
-    ELF::append_symbol(elf, ELF::make_symbol(".data", ".data", ELF::STB_LOCAL, ELF::STT_SECTION, 0));
-    ELF::append_symbol(elf, ELF::make_symbol("exit_code", ".data", ELF::STB_LOCAL, ELF::STT_NOTYPE, 0));
-    ELF::append_symbol(elf, ELF::make_symbol("msg", ".data", ELF::STB_LOCAL, ELF::STT_NOTYPE, 4));
-    ELF::append_symbol(elf, ELF::make_symbol("printf", "undef", ELF::STB_GLOBAL, ELF::STT_NOTYPE, 0));
-    ELF::append_symbol(elf, ELF::make_symbol("_start", ".text", ELF::STB_GLOBAL, ELF::STT_NOTYPE, 0));
+    elf.append_symbol(ELF::make_symbol("", "undef", 0, 0, 0));
+    elf.append_symbol(ELF::make_symbol(".text", ".text", ELF::STB_LOCAL, ELF::STT_SECTION, 0));
+    elf.append_symbol(ELF::make_symbol(".data", ".data", ELF::STB_LOCAL, ELF::STT_SECTION, 0));
+    elf.append_symbol(ELF::make_symbol("exit_code", ".data", ELF::STB_LOCAL, ELF::STT_NOTYPE, 0));
+    elf.append_symbol(ELF::make_symbol("msg", ".data", ELF::STB_LOCAL, ELF::STT_NOTYPE, 4));
+    elf.append_symbol(ELF::make_symbol("printf", "undef", ELF::STB_GLOBAL, ELF::STT_NOTYPE, 0));
+    elf.append_symbol(ELF::make_symbol("_start", ".text", ELF::STB_GLOBAL, ELF::STT_NOTYPE, 0));
 
-    elf.get_section_by_name(".symtab")->info = elf.get_first_nonlocal_symbol_index();
     elf.get_section_by_name(".symtab")->link = elf.get_section_by_name(".strtab")->index;
+    elf.get_section_by_name(".symtab")->info = elf.get_first_nonlocal_symbol_index();
+
+    elf.get_section_by_name(".rela.text")->link = elf.get_section_by_name(".symtab")->index;
+    elf.get_section_by_name(".rela.text")->info = elf.get_section_by_name(".text")->index;
 
     elf.get_section_by_name(".data")->data.push_back(0x3C);
     elf.get_section_by_name(".data")->data.push_back(0x00);
@@ -208,7 +211,7 @@ int main() {
     for(u8 b : bytes) {
         elf.get_section_by_name(".text")->data.push_back(b);
     }
-    ELF::write("test.o", elf);
+    elf.write("test.o");
     
     return 0;
 }

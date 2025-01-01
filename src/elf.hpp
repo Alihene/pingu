@@ -122,7 +122,7 @@ struct Symbol {
     u32 index;
 };
 
-struct ElfFile {
+class ElfFile {
     Elf64_Ehdr header;
 
     /* Ordered maps */
@@ -135,75 +135,23 @@ struct ElfFile {
         std::vector<std::string> insertion_order;
     } symbols;
 
-    inline void append_section(std::string name, u32 type, u32 alignment, u32 flags, u64 entry_size, u32 link, u32 info) {
-        ELF::Section section;
-        section.name = name;
-        section.type = type;
-        section.alignment = alignment;
-        section.flags = flags;
-        section.entry_size = entry_size;
-        section.link = link;
-        section.info = info;
-        section.index = this->sections.insertion_order.size();
-        this->sections.section_map[name] = section;
-        this->sections.insertion_order.push_back(name);
-    }
+public:
+    ElfFile();
 
-    inline Section *get_section_by_name(std::string name) {
-        if(this->sections.section_map.contains(name)) {
-            return &this->sections.section_map[name];
-        }
+    void append_section(std::string name, u32 type, u32 alignment, u32 flags, u64 entry_size, u32 link, u32 info);
 
-        return nullptr;
-    }
+    Section *get_section_by_name(std::string name);
 
-    inline Symbol *get_symbol_by_name(std::string name) {
-        if(this->symbols.symbol_map.contains(name)) {
-            return &this->symbols.symbol_map[name];
-        }
+    Symbol *get_symbol_by_name(std::string name);
 
-        return nullptr;
-    }
+    u32 get_first_nonlocal_symbol_index() const;
 
-    /* Needed for .symtab info field */
-    inline u32 get_first_nonlocal_symbol_index() const {
-        for(auto &symbol_name : this->symbols.insertion_order) {
-            const auto &symbol = this->symbols.symbol_map.at(symbol_name);
-            if((symbol.type >> 4) == STB_GLOBAL) {
-                return symbol.index;
-            }
-        }
+    void append_symbol(const Symbol &symbol);
 
-        return this->symbols.insertion_order.size();
-    }
+    void append_reloc(std::string sym_name, u32 type, u64 reloc_addr, u64 addend);
 
-    inline void append_reloc(std::string sym_name, u32 type, u64 reloc_addr, u64 addend) {
-        auto symbol = this->get_symbol_by_name(sym_name);
-        
-        /* TODO: replace with assert */
-        if(!symbol) {
-            return;
-        }
-
-        Elf64_Rela rela = {
-            reloc_addr,
-            (u64) type + (((u64) symbol->index) << 32),
-            addend
-        };
-
-        u8 *rela_bytes = reinterpret_cast<u8*>(&rela);
-        auto rela_text_section = this->get_section_by_name(".rela.text");
-        for(u32 i = 0; i < sizeof(Elf64_Rela); i++) {
-            rela_text_section->data.push_back(rela_bytes[i]);
-        }
-    }
+    void write(std::string filename);
 };
-
-ElfFile init_elf();
-
-void append_symbol(ElfFile &elf, const Symbol &symbol);
-
-void write(std::string filename, ElfFile &elf);
 
 Symbol make_symbol(std::string name, std::string section_name, u8 bind, u8 type, u64 value);
 
