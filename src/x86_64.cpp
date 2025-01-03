@@ -62,8 +62,8 @@ static std::unordered_map<u8, x86_64::EncodingList> instructions = {
         {x86_64::PUSH, {0x00}, {0xFF, 0x00, 0x00}, 1, x86_64::OP_EN_M, 6, false},
     }},
     {x86_64::POP, {
-        {x86_64::POP, {0x00}, {0x8F, 0x00, 0x00}, 1, x86_64::OP_EN_M, false},
         {x86_64::POP, {0x00}, {0x58, 0x00, 0x00}, 1, x86_64::OP_EN_O, false},
+        {x86_64::POP, {0x00}, {0x8F, 0x00, 0x00}, 1, x86_64::OP_EN_M, false},
     }},
     {x86_64::RET, {
         {x86_64::RET, {0x00}, {0xC3, 0x00, 0x00}, 1, x86_64::OP_EN_ZO, false},
@@ -130,6 +130,10 @@ x86_64::InstructionData x86_64::encode_r(x86_64::EncodingData data, x86_64::Reg 
         data.enc_opcode[data.opcode_size - 1] |= ENCODE_REG(reg);
     }
     insn.set_opcode(data.enc_opcode, data.opcode_size);
+
+    if(!data.encode_operand_in_opcode()) {
+        insn.set_modrm(3, data.default_modrm_reg, reg % 8);
+    }
 
     return insn;
 }
@@ -392,28 +396,42 @@ x86_64::InstructionData x86_64::encode_rm(x86_64::EncodingData data, x86_64::Reg
 
     insn.set_opcode(data.enc_opcode, data.opcode_size);
 
-    if(addr.is_base_valid() && !addr.is_index_valid() && addr.displacement == 0) { /* [base] */
-        insn.set_modrm(0, ENCODE_REG(reg), ENCODE_REG(addr.base));
-    } else if(addr.is_base_valid() && !addr.is_index_valid() && addr.displacement > 0) { /* [base+disp(8/32)] */
-        bool is_disp8 = addr.is_displacement_8_bit();
-        insn.set_modrm(is_disp8 ? 0b01 : 0b10, ENCODE_REG(reg), ENCODE_REG(addr.base));
-        insn.set_displacement(addr.displacement, is_disp8 ? 1 : 4);
-    } else if(addr.is_base_valid() && addr.is_index_valid() && addr.displacement == 0) { /* [base+(index*scale)] */
-        insn.set_modrm(0, ENCODE_REG(reg), 0b100);
-        insn.set_sib(addr.scale, ENCODE_REG(addr.index), ENCODE_REG(addr.base));
-    } else if(addr.is_base_valid() && addr.is_index_valid() && addr.displacement > 0) { /* [base+(index*scale)+disp(8/32)] */
-        bool is_disp8 = addr.is_displacement_8_bit();
-        insn.set_modrm(is_disp8 ? 0b01 : 0b10, ENCODE_REG(reg), 0b100);
-        insn.set_sib(addr.scale, ENCODE_REG(addr.index), ENCODE_REG(addr.base));
-        insn.set_displacement(addr.displacement, is_disp8 ? 1 : 4);
-    } else if(!addr.is_base_valid() && addr.is_index_valid()) { /* [(index*scale)+disp32] */
-        insn.set_modrm(0, ENCODE_REG(reg), 0b100);
-        insn.set_sib(addr.scale, addr.index, 0b101);
-        insn.set_displacement(addr.displacement, 4);
-    } else if(!addr.is_base_valid() && !addr.is_base_valid()) { /* [disp32] */
-        insn.set_modrm(0, ENCODE_REG(reg), 0b100);
-        insn.set_sib(0, 0b100, 0b101);
-        insn.set_displacement(addr.displacement, 4);
+    if(addr.is_base_valid() && ENCODE_REG(addr.base) == ENCODE_REG(x86_64::REG_RSP)) {
+        /* Edge cases concerning rsp register, need to be handled first */
+        if(!addr.is_index_valid() && addr.displacement == 0) { /* [rsp] */
+            insn.set_modrm(0, ENCODE_REG(reg), ENCODE_REG(x86_64::REG_RSP));
+            insn.set_sib(0, 0b100, ENCODE_REG(x86_64::REG_RSP));
+        } else if(!addr.is_index_valid() && addr.displacement > 0) { /* [rsp+disp(8/32)] */
+            bool is_disp8 = addr.is_displacement_8_bit();
+            insn.set_modrm(is_disp8 ? 0b01 : 0b10, ENCODE_REG(reg), ENCODE_REG(x86_64::REG_RSP));
+            insn.set_sib(0, 0b100, ENCODE_REG(x86_64::REG_RSP));
+            insn.set_displacement(addr.displacement, is_disp8 ? 1 : 4);
+        }
+    } else {
+        /* Normal cases */
+        if(addr.is_base_valid() && !addr.is_index_valid() && addr.displacement == 0) { /* [base] */
+            insn.set_modrm(0, ENCODE_REG(reg), ENCODE_REG(addr.base));
+        } else if(addr.is_base_valid() && !addr.is_index_valid() && addr.displacement > 0) { /* [base+disp(8/32)] */
+            bool is_disp8 = addr.is_displacement_8_bit();
+            insn.set_modrm(is_disp8 ? 0b01 : 0b10, ENCODE_REG(reg), ENCODE_REG(addr.base));
+            insn.set_displacement(addr.displacement, is_disp8 ? 1 : 4);
+        } else if(addr.is_base_valid() && addr.is_index_valid() && addr.displacement == 0) { /* [base+(index*scale)] */
+            insn.set_modrm(0, ENCODE_REG(reg), 0b100);
+            insn.set_sib(addr.scale, ENCODE_REG(addr.index), ENCODE_REG(addr.base));
+        } else if(addr.is_base_valid() && addr.is_index_valid() && addr.displacement > 0) { /* [base+(index*scale)+disp(8/32)] */
+            bool is_disp8 = addr.is_displacement_8_bit();
+            insn.set_modrm(is_disp8 ? 0b01 : 0b10, ENCODE_REG(reg), 0b100);
+            insn.set_sib(addr.scale, ENCODE_REG(addr.index), ENCODE_REG(addr.base));
+            insn.set_displacement(addr.displacement, is_disp8 ? 1 : 4);
+        } else if(!addr.is_base_valid() && addr.is_index_valid()) { /* [(index*scale)+disp32] */
+            insn.set_modrm(0, ENCODE_REG(reg), 0b100);
+            insn.set_sib(addr.scale, addr.index, 0b101);
+            insn.set_displacement(addr.displacement, 4);
+        } else if(!addr.is_base_valid() && !addr.is_base_valid()) { /* [disp32] */
+            insn.set_modrm(0, ENCODE_REG(reg), 0b100);
+            insn.set_sib(0, 0b100, 0b101);
+            insn.set_displacement(addr.displacement, 4);
+        }
     }
 
     return insn;

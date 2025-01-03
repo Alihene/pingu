@@ -6,6 +6,7 @@
 
 #include "x86_64.hpp"
 #include "elf.hpp"
+#include "tac.hpp"
 
 static void print_bytes(const std::vector<u8> &bytes) {
     for(u8 b : bytes) {
@@ -17,143 +18,26 @@ static void print_bytes(const std::vector<u8> &bytes) {
 int main() {
     std::vector<u8> bytes;
 
-    x86_64::encode_rr(x86_64::ADD, x86_64::REG_RAX, x86_64::REG_RCX)
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
+    TAC::InstructionGenerator generator;
+    generator.push_label("_start");
+    generator.push_var("b", 4);
+    generator.push_var("c", 4);
+    generator.append_instr_enter(0x18);
+    generator.push_var("a", 4);
+    generator.append_assign("a", TAC::OPC_ADD, "b", "c");
+    generator.append_instr_leave();
+    generator.print();
 
-    x86_64::encode_ri(
-        x86_64::ADD,
-        x86_64::REG_R11,
-        x86_64::make_imm<u32>(0x12345678))
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
+    TAC::CodeBuffer buffer;
+    generator.encode(buffer);
+    bytes.insert(bytes.end(), buffer.bytes.begin(), buffer.bytes.end());
+    // print_bytes(bytes);
+    // bytes.clear();
 
-    x86_64::encode_rm(
-        x86_64::ADD,
-        x86_64::REG_RCX,
-        x86_64::make_mem(
-            4,
-            0x1234,
-            3,
-            x86_64::REG_RDX,
-            x86_64::REG_R12))
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
+    // for(auto &label : buffer.labels) {
+    //     std::printf("%08x, %s\n", label.position, label.name.c_str());
+    // }
 
-    x86_64::encode_mr(
-        x86_64::ADD,
-        x86_64::make_mem(1, 0x1234, 3, x86_64::REG_RDX, x86_64::REG_R12),
-        x86_64::REG_AL)
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
-
-    x86_64::encode_rm(
-        x86_64::MOV,
-        x86_64::REG_AX,
-        x86_64::make_mem(2, 0x1234, 0, x86_64::ADDR_INVALID_INDEX, x86_64::ADDR_INVALID_BASE))
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
-
-    x86_64::encode_rr(x86_64::MOV, x86_64::REG_AL, x86_64::REG_BL)
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
-
-    x86_64::encode_ri(
-        x86_64::MOV,
-        x86_64::REG_ECX,
-        x86_64::make_imm<u32>(0x12345678))
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
-
-    x86_64::encode_mi(
-        x86_64::MOV,
-        x86_64::make_mem(4, 0x1234, 2, x86_64::REG_R11, x86_64::REG_R12),
-        x86_64::make_imm<u32>(0x12345678))
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
-
-    x86_64::encode_mi(
-        x86_64::MOV,
-        x86_64::make_mem(2, 1, 1, x86_64::REG_R15, x86_64::REG_RDI),
-        x86_64::make_imm<u16>(1))
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
-
-    x86_64::encode_mi(
-        x86_64::MOV,
-        x86_64::make_mem(1, 0x12345678, 3, x86_64::REG_R15, x86_64::REG_RDI),
-        x86_64::make_imm<u8>(0xFF))
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
-
-    x86_64::encode_mr(
-        x86_64::MOV,
-        x86_64::make_mem(2, 1, 0, x86_64::REG_EAX, x86_64::REG_R15D),
-        x86_64::REG_R8W)
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
-
-    x86_64::encode_mi(
-        x86_64::MOV,
-        x86_64::make_mem(4, 0, 0, x86_64::ADDR_INVALID_INDEX, x86_64::REG_RCX),
-        x86_64::make_imm<u32>(0x1234))
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
-
-    x86_64::encode_m(
-        x86_64::PUSH,
-        x86_64::make_mem(8, 0x1234, 2, x86_64::REG_RAX, x86_64::REG_R12))
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
-
-    x86_64::encode_r(
-        x86_64::PUSH,
-        x86_64::REG_RDX)
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
-
-    x86_64::encode_i(
-        x86_64::PUSH,
-        x86_64::make_imm<u8>(1))
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
-
-    x86_64::encode_i(
-        x86_64::PUSH,
-        x86_64::make_imm<u32>(0x12345678))
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
-
-    x86_64::encode_m(
-        x86_64::PUSH,
-        x86_64::make_mem(8, 0x1234, 0, x86_64::ADDR_INVALID_INDEX, x86_64::ADDR_INVALID_BASE))
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
-
-    x86_64::encode_mi(
-        x86_64::MOV,
-        x86_64::make_mem(4, 0x1234, 0, x86_64::ADDR_INVALID_INDEX, x86_64::ADDR_INVALID_BASE),
-        x86_64::make_imm<u32>(0x5678))
-        .encode(bytes);
-    print_bytes(bytes);
-    bytes.clear();
 
     ELF::ElfFile elf;
     elf.append_section("", ELF::SHT_NULL, 0, 0, 0, 0, 0);
@@ -178,35 +62,35 @@ int main() {
     elf.get_section_by_name(".rela.text")->link = elf.get_section_by_name(".symtab")->index;
     elf.get_section_by_name(".rela.text")->info = elf.get_section_by_name(".text")->index;
 
-    elf.get_section_by_name(".data")->data.push_back(0x3C);
-    elf.get_section_by_name(".data")->data.push_back(0x00);
-    elf.get_section_by_name(".data")->data.push_back(0x00);
-    elf.get_section_by_name(".data")->data.push_back(0x00);
+    // elf.get_section_by_name(".data")->data.push_back(0x3C);
+    // elf.get_section_by_name(".data")->data.push_back(0x00);
+    // elf.get_section_by_name(".data")->data.push_back(0x00);
+    // elf.get_section_by_name(".data")->data.push_back(0x00);
 
-    elf.get_section_by_name(".data")->data.push_back('H');
-    elf.get_section_by_name(".data")->data.push_back('e');
-    elf.get_section_by_name(".data")->data.push_back('l');
-    elf.get_section_by_name(".data")->data.push_back('l');
-    elf.get_section_by_name(".data")->data.push_back('o');
-    elf.get_section_by_name(".data")->data.push_back(',');
-    elf.get_section_by_name(".data")->data.push_back(' ');
-    elf.get_section_by_name(".data")->data.push_back('W');
-    elf.get_section_by_name(".data")->data.push_back('o');
-    elf.get_section_by_name(".data")->data.push_back('r');
-    elf.get_section_by_name(".data")->data.push_back('l');
-    elf.get_section_by_name(".data")->data.push_back('d');
-    elf.get_section_by_name(".data")->data.push_back('!');
-    elf.get_section_by_name(".data")->data.push_back('\n');
+    // elf.get_section_by_name(".data")->data.push_back('H');
+    // elf.get_section_by_name(".data")->data.push_back('e');
+    // elf.get_section_by_name(".data")->data.push_back('l');
+    // elf.get_section_by_name(".data")->data.push_back('l');
+    // elf.get_section_by_name(".data")->data.push_back('o');
+    // elf.get_section_by_name(".data")->data.push_back(',');
+    // elf.get_section_by_name(".data")->data.push_back(' ');
+    // elf.get_section_by_name(".data")->data.push_back('W');
+    // elf.get_section_by_name(".data")->data.push_back('o');
+    // elf.get_section_by_name(".data")->data.push_back('r');
+    // elf.get_section_by_name(".data")->data.push_back('l');
+    // elf.get_section_by_name(".data")->data.push_back('d');
+    // elf.get_section_by_name(".data")->data.push_back('!');
+    // elf.get_section_by_name(".data")->data.push_back('\n');
 
-    auto value_offsets = x86_64::encode_ri(x86_64::MOV, x86_64::REG_RDI, x86_64::make_imm<u64>(0)).encode(bytes);
-    elf.append_reloc(".data", 1, value_offsets.second, 4);
-    value_offsets = x86_64::encode_i(x86_64::CALL, x86_64::make_imm<u32>(0)).encode(bytes);
-    elf.append_reloc("printf", 2, value_offsets.second, -4);
+    // auto value_offsets = x86_64::encode_ri(x86_64::MOV, x86_64::REG_RDI, x86_64::make_imm<u64>(0)).encode(bytes);
+    // elf.append_reloc(".data", 1, value_offsets.second, 4);
+    // value_offsets = x86_64::encode_i(x86_64::CALL, x86_64::make_imm<u32>(0)).encode(bytes);
+    // elf.append_reloc("printf", 2, value_offsets.second, -4);
 
-    value_offsets = x86_64::encode_rm(x86_64::MOV, x86_64::REG_EAX, x86_64::make_mem(4, 0, 0, x86_64::ADDR_INVALID_INDEX, x86_64::ADDR_INVALID_BASE)).encode(bytes);
-    elf.append_reloc(".data", 11, value_offsets.first, 0);
-    x86_64::encode_ri(x86_64::MOV, x86_64::REG_EDI, x86_64::make_imm<u32>(0)).encode(bytes);
-    x86_64::encode_zo(x86_64::SYSCALL).encode(bytes);
+    // value_offsets = x86_64::encode_rm(x86_64::MOV, x86_64::REG_EAX, x86_64::make_mem(4, 0, 0, x86_64::ADDR_INVALID_INDEX, x86_64::ADDR_INVALID_BASE)).encode(bytes);
+    // elf.append_reloc(".data", 11, value_offsets.first, 0);
+    // x86_64::encode_ri(x86_64::MOV, x86_64::REG_EDI, x86_64::make_imm<u32>(0)).encode(bytes);
+    // x86_64::encode_zo(x86_64::SYSCALL).encode(bytes);
 
     for(u8 b : bytes) {
         elf.get_section_by_name(".text")->data.push_back(b);
